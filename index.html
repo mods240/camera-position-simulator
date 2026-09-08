@@ -636,7 +636,7 @@ document.querySelectorAll('#tab-people .toggle button[data-peoplemode]').forEach
     state.blockingMode = b.dataset.peoplemode==='blocking';
     $('peoplePanel-photo').style.display = state.blockingMode ? 'none' : '';
     $('peoplePanel-blocking').style.display = state.blockingMode ? '' : 'none';
-    if(state.blockingMode && state.pins.length===0) seedPinsFromCurrentLayout();
+    if(state.blockingMode && state.pins.length===0) seedDefaultPins();
     rebuildPinList();
     updatePinEditor();
     onParamsChanged();
@@ -715,23 +715,14 @@ $('sceneNoteInput').addEventListener('input', ()=>{
   sc.note=$('sceneNoteInput').value;
 });
 
-function seedPinsFromCurrentLayout(){
-  const {child:childCount, rowCounts:rowCountsRaw}=updatePeopleTotals();
-  const rows=rowCountsRaw.length;
-  const spacing=parseFloat($('spacing').value), rowGap=parseFloat($('rowGap').value);
+function seedDefaultPins(){
   const bdGap=parseFloat($('bdGap').value), backdropDepth=parseFloat($('bdDepth').value);
-  const rowsData=distributeTypes(rowCountsRaw, childCount);
-  const pins=[];
-  let adultN=0, childN=0;
-  rowsData.forEach((rowPeople,i)=>{
-    const z=backdropDepth-bdGap-(rows-1-i)*rowGap;
-    const n=rowPeople.length; const rowWidth=(n-1)*spacing;
-    rowPeople.forEach((type,j)=>{
-      if(type==='adult'){ adultN++; } else { childN++; }
-      pins.push({x:-rowWidth/2+j*spacing, z, type, color:type==='adult'?'#D9B98A':'#E8A33D', name:(type==='adult'?'大人':'子供')+(type==='adult'?adultN:childN)});
-    });
-  });
-  state.pins=pins;
+  const z=backdropDepth-bdGap;
+  state.pins=[
+    {x:-0.35, z, type:'adult', color:'#D9B98A', name:'大人1'},
+    {x:0.35, z, type:'adult', color:'#D9B98A', name:'大人2'}
+  ];
+  state.selectedPin=-1;
 }
 function addPin(type, x, z){
   const n=state.pins.filter(p=>p.type===type).length+1;
