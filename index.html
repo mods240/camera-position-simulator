@@ -1162,6 +1162,7 @@ mainCanvas.addEventListener('pointerdown', e=>{
     if(target){
       dragObject=target;
       if(target.type==='camera' && target.index!==state.activeCam) selectCamera(target.index);
+      if(target.type==='backdrop' && target.index!==state.activeBackdrop) selectBackdrop(target.index);
       if(target.type==='pin') state.selectedPin=target.index;
     } else if(state.blockingMode && state.selectedPin!==-1){
       state.selectedPin=-1;
@@ -1187,6 +1188,11 @@ window.addEventListener('pointermove', e=>{
       const studioD=parseFloat($('studioD').value), studioW=parseFloat($('studioW').value);
       $('camDepth').value=Math.max(0, Math.min(studioD, wp.z)).toFixed(2);
       $('camX').value=Math.max(-studioW, Math.min(studioW, wp.x)).toFixed(2);
+      onParamsChanged();
+    } else if(dragObject.type==='backdrop'){
+      const studioD=parseFloat($('studioD').value), studioW=parseFloat($('studioW').value);
+      $('bdDepth').value=Math.max(0.5, Math.min(studioD, wp.z)).toFixed(2);
+      $('bdX').value=Math.max(-studioW/2, Math.min(studioW/2, wp.x)).toFixed(2);
       onParamsChanged();
     } else if(dragObject.type==='pin' && state.pins[dragObject.index]){
       state.pins[dragObject.index].x=wp.x;
@@ -1294,6 +1300,10 @@ function animate(){
 
   if(state.view==='top'){
     dragTargets=[];
+    state.backdrops.forEach((bd,i)=>{
+      const s=project(topCam, new THREE.Vector3(bd.bdX,0,bd.bdDepth));
+      if(s.visible) dragTargets.push({type:'backdrop', index:i, x:s.x, y:s.y});
+    });
     state.cameras.forEach((cam,i)=>{
       const s=project(topCam, new THREE.Vector3(parseFloat(cam.camX)||0,0,parseFloat(cam.camDepth)||0));
       if(s.visible) dragTargets.push({type:'camera', index:i, x:s.x, y:s.y});
