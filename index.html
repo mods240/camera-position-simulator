@@ -72,13 +72,13 @@
 <div class="wrap">
   <div class="controls">
     <div class="tabs">
-      <button data-tab="studio" class="active">スタジオ</button>
-      <button data-tab="people">配置</button>
-      <button data-tab="backdrop">背景布</button>
+      <button data-tab="people" class="active">配置</button>
+      <button data-tab="studio">スタジオ</button>
       <button data-tab="camera">カメラ</button>
+      <button data-tab="backdrop">背景布</button>
     </div>
 
-    <div class="tabpanel active" id="tab-studio">
+    <div class="tabpanel" id="tab-studio">
       <h2 class="grouplabel">スタジオ寸法</h2>
       <label>幅 <span class="val" id="studioWVal">12.0 m</span></label>
       <input type="range" id="studioW" min="4" max="30" step="0.5" value="12">
@@ -89,7 +89,7 @@
       <p class="note">壁・床のワイヤーフレームはスタジオの広さの目安です。</p>
     </div>
 
-    <div class="tabpanel" id="tab-people">
+    <div class="tabpanel active" id="tab-people">
       <h2 class="grouplabel">モード</h2>
       <div class="toggle">
         <button data-peoplemode="photo" class="active">記念撮影モード</button>
