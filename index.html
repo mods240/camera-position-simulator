@@ -101,7 +101,7 @@
         <div class="row-inline"><span class="lbl">総人数</span><input type="number" id="total" value="10" min="1" max="200"></div>
         <div class="row-inline"><span class="lbl">大人の人数</span><input type="number" id="adultCount" value="6" min="0" max="200"></div>
         <div class="row-inline"><span class="lbl">子供の人数</span><input type="number" id="childCount" value="4" min="0" max="200"></div>
-        <p class="note">総人数・大人・子供のいずれかを変えると、各列の人数がその合計に合わせて自動的に再配分されます(比率はできるだけ保たれます)。各列の人数を直接編集することもできます。</p>
+        <p class="note">総人数・大人・子供を変えると、各列の人数がその合計に合わせて再配分されます。各列を直接編集した場合は総人数を固定したまま、他の列で自動調整されます。</p>
 
         <h2 class="grouplabel" style="margin-top:16px;">配列</h2>
         <div class="row-inline"><span class="lbl">列数(前後)</span><input type="number" id="rows" value="3" min="1" max="15"></div>
@@ -585,11 +585,13 @@ document.querySelectorAll('.view-toggle button').forEach(b=>{
 });
 
 /* ---------- people layout (explicit per-row counts) ---------- */
+let rowCountInputEls=[];
 function buildRowCountInputs(){
   const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
   while(state.rowCounts.length<rows) state.rowCounts.push(3);
   state.rowCounts.length=rows;
   const box=$('rowCountInputs'); box.innerHTML='';
+  rowCountInputEls=[];
   state.rowCounts.forEach((count,i)=>{
     const row=document.createElement('div');
     row.className='row-inline';
@@ -597,10 +599,47 @@ function buildRowCountInputs(){
     const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=label;
     const input=document.createElement('input');
     input.type='number'; input.min='0'; input.max='80'; input.value=count; input.style.width='64px';
-    input.addEventListener('input', ()=>{ state.rowCounts[i]=Math.max(0, parseInt(input.value)||0); onParamsChanged(); });
+    input.addEventListener('input', ()=>{
+      adjustRowCount(i, parseInt(input.value)||0);
+      syncRowCountInputsDisplay();
+      onParamsChanged();
+    });
+    rowCountInputEls.push(input);
     row.appendChild(lbl); row.appendChild(input);
     box.appendChild(row);
   });
+}
+function syncRowCountInputsDisplay(){
+  state.rowCounts.forEach((v,i)=>{ if(rowCountInputEls[i] && document.activeElement!==rowCountInputEls[i]) rowCountInputEls[i].value=v; });
+}
+function adjustRowCount(i, newVal){
+  const rows=state.rowCounts;
+  newVal=Math.max(0, Math.round(newVal));
+  const total=rows.reduce((a,b)=>a+b,0);
+  newVal=Math.min(newVal, total);
+  const newOthersSum=total-newVal;
+  const otherIdx=rows.map((_,idx)=>idx).filter(idx=>idx!==i);
+  const othersOld=otherIdx.map(idx=>rows[idx]);
+  const othersOldSum=othersOld.reduce((a,b)=>a+b,0);
+  let newOthers;
+  if(othersOldSum<=0){
+    const n=othersOld.length;
+    if(n===0){ newOthers=[]; }
+    else{
+      const base=Math.floor(newOthersSum/n), rem=newOthersSum-base*n;
+      newOthers=othersOld.map((_,k)=>base+(k<rem?1:0));
+    }
+  } else {
+    const scaled=othersOld.map(v=>v*newOthersSum/othersOldSum);
+    const floors=scaled.map(v=>Math.floor(v));
+    let used=floors.reduce((a,b)=>a+b,0);
+    let remainder=newOthersSum-used;
+    const fracIdx=scaled.map((v,k)=>({k,frac:v-floors[k]})).sort((a,b)=>b.frac-a.frac);
+    newOthers=floors.slice();
+    for(let k=0;k<remainder && fracIdx.length>0;k++) newOthers[fracIdx[k%fracIdx.length].k]++;
+  }
+  otherIdx.forEach((idx,k)=>{ rows[idx]=newOthers[k]; });
+  rows[i]=newVal;
 }
 $('rows').addEventListener('input', ()=>{ buildRowCountInputs(); onParamsChanged(); });
 function getRowCounts(){
