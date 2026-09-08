@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カメラポジションシミュレーター</title>
+<style>
+  :root{
+    --bg:#14161A; --panel:#1C1F24; --panel-2:#22262C; --line:#2B3036;
+    --text:#EDEEEF; --muted:#8B929C; --amber:#E8A33D; --amber-dim:rgba(232,163,61,0.16);
+    --teal:#4FA3A0; --teal-dim:rgba(79,163,160,0.16); --red:#D96C6C;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --sans:-apple-system,'Hiragino Sans','Yu Gothic',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
+  .wrap{display:flex;min-height:100vh;flex-wrap:wrap;}
+  .controls{width:300px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);max-height:100vh;overflow-y:auto;}
+  .tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2;}
+  .tabs button{flex:1;padding:12px 4px;font-size:12px;background:none;border:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;}
+  .tabs button.active{color:var(--amber);border-bottom-color:var(--amber);}
+  .tabpanel{display:none;padding:20px;}
+  .tabpanel.active{display:block;}
+  label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:6px;}
+  label span.val{color:var(--text);font-family:var(--mono);font-size:12.5px;}
+  input[type=range]{width:100%;-webkit-appearance:none;height:3px;background:var(--line);border-radius:2px;outline:none;margin-bottom:14px;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 0 3px var(--amber-dim);}
+  input[type=number]{width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-family:var(--mono);font-size:12.5px;padding:4px 6px;border-radius:4px;}
+  .row-inline{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .row-inline .lbl{font-size:12.5px;color:var(--muted);}
+  .note{font-size:11.5px;color:var(--muted);margin:-8px 0 14px;line-height:1.5;}
+  .swatches{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .swatch-btn{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;}
+  .swatch-btn.active{border-color:var(--text);}
+  .lens-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
+  .lens-btn{font-family:var(--mono);font-size:12px;padding:5px 9px;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;}
+  .lens-btn.active{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+  .toggle{display:flex;gap:6px;margin-bottom:14px;}
+  .toggle button{flex:1;font-size:12px;padding:7px 0;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;}
+  .toggle button.active{border-color:var(--teal);color:var(--teal);background:var(--teal-dim);}
+  h2.grouplabel{font-size:11px;color:var(--muted);margin:0 0 12px;font-weight:600;}
+
+  .main{flex:1;min-width:380px;padding:20px;display:flex;flex-direction:column;gap:14px;}
+  .stage-head{display:flex;justify-content:space-between;align-items:center;}
+  .view-toggle{display:flex;gap:6px;}
+  .view-toggle button{font-size:12.5px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;}
+  .view-toggle button.active{border-color:var(--amber);color:var(--amber);background:var(--amber-dim);}
+  .legend{display:flex;gap:16px;font-size:11.5px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .sw{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+  .stage{position:relative;background:#0E1013;border:1px solid var(--line);border-radius:8px;flex:1;min-height:480px;overflow:hidden;}
+  .stage canvas{display:block;width:100%;height:100%;}
+  .overlay-info{position:absolute;top:10px;right:12px;font-family:var(--mono);font-size:11px;color:#B9C0C8;background:rgba(20,22,26,0.55);padding:8px 10px;border-radius:6px;line-height:1.6;text-align:right;pointer-events:none;}
+  .cam-preview{position:absolute;bottom:12px;right:12px;width:220px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#0E1013;box-shadow:0 6px 18px rgba(0,0,0,0.4);}
+  .cam-preview .cam-label{position:absolute;top:0;left:0;font-family:var(--mono);font-size:10px;background:rgba(20,22,26,0.7);padding:3px 6px;color:var(--amber);}
+  .cam-preview canvas{display:block;width:100%;}
+  .dim-label{position:absolute;font-family:var(--mono);font-size:11px;color:#CFE8E6;background:rgba(20,22,26,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;transform:translate(-50%,-50%);white-space:nowrap;}
+  .hint{position:absolute;bottom:10px;left:12px;font-size:11px;color:var(--muted);background:rgba(20,22,26,0.5);padding:4px 8px;border-radius:5px;pointer-events:none;}
+
+  .verdict{font-family:var(--mono);font-size:12.5px;color:var(--muted);padding:10px 16px;background:var(--panel);border:1px solid var(--line);border-radius:8px;line-height:1.6;}
+  .verdict b{color:var(--text);}
+  .verdict.ng{border-color:rgba(217,108,108,0.4);}
+  .verdict.ng b.status{color:var(--red);}
+  .verdict.ok b.status{color:var(--teal);}
+  @media (max-width:900px){
+    .wrap{flex-direction:column;}
+    .controls{width:100%;border-right:none;border-bottom:1px solid var(--line);max-height:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="controls">
+    <div class="tabs">
+      <button data-tab="studio" class="active">スタジオ</button>
+      <button data-tab="people">配置</button>
+      <button data-tab="backdrop">背景布</button>
+      <button data-tab="camera">カメラ</button>
+    </div>
+
+    <div class="tabpanel active" id="tab-studio">
+      <h2 class="grouplabel">スタジオ寸法</h2>
+      <label>幅 <span class="val" id="studioWVal">12.0 m</span></label>
+      <input type="range" id="studioW" min="4" max="30" step="0.5" value="12">
+      <label>奥行 <span class="val" id="studioDVal">15.0 m</span></label>
+      <input type="range" id="studioD" min="4" max="40" step="0.5" value="15">
+      <label>高さ <span class="val" id="studioHVal">5.5 m</span></label>
+      <input type="range" id="studioH" min="2.5" max="10" step="0.1" value="5.5">
+      <p class="note">壁・床のワイヤーフレームはスタジオの広さの目安です。</p>
+    </div>
+
+    <div class="tabpanel" id="tab-people">
+      <h2 class="grouplabel">モード</h2>
+      <div class="toggle">
+        <button data-peoplemode="photo" class="active">記念撮影モード</button>
+        <button data-peoplemode="blocking">場当たりモード</button>
+      </div>
+
+      <div id="peoplePanel-photo">
+        <h2 class="grouplabel">人数構成</h2>
+        <div class="row-inline"><span class="lbl">総人数</span><span class="val" id="totalDisplay">10</span></div>
+        <div class="row-inline"><span class="lbl">大人の人数</span><span class="val" id="adultCountDisplay">6</span></div>
+        <div class="row-inline"><span class="lbl">子供の人数</span><input type="number" id="childCount" value="4" min="0" max="200"></div>
+        <p class="note">総人数は各列の人数の合計です。子供の人数を設定すると、残りが大人になります。</p>
+
+        <h2 class="grouplabel" style="margin-top:16px;">配列</h2>
+        <div class="row-inline"><span class="lbl">列数(前後)</span><input type="number" id="rows" value="3" min="1" max="15"></div>
+        <div id="rowCountInputs" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
+        <p class="note">各列の人数を個別に指定できます。子供は前の列から優先的に配置されます。</p>
+        <p class="note" id="rowBreakdownDisplay" style="margin-top:-6px;">行ごとの人数: —</p>
+        <label>横の人数間隔 <span class="val" id="spacingVal">0.6 m</span></label>
+        <input type="range" id="spacing" min="0.4" max="0.9" step="0.05" value="0.6">
+        <label>列同士の前後間隔 <span class="val" id="rowGapVal">0.5 m</span></label>
+        <input type="range" id="rowGap" min="0.3" max="1.2" step="0.05" value="0.5">
+        <label>背景との間隔(最後列) <span class="val" id="bdGapVal">0.5 m</span></label>
+        <input type="range" id="bdGap" min="0.2" max="5" step="0.1" value="0.5">
+        <p class="note">人物列は背景の手前にこの間隔で並びます。背景を動かすと人物も一緒についてきます。</p>
+      </div>
+
+      <div id="peoplePanel-blocking" style="display:none;">
+        <h2 class="grouplabel">場当たり配置</h2>
+        <p class="note">アイコンをキャンバス(上面ビュー推奨)にドラッグ&ドロップすると配置されます。</p>
+        <div style="display:flex;gap:20px;margin-bottom:14px;">
+          <div id="paletteAdult" draggable="true" style="display:flex;flex-direction:column;align-items:center;gap:5px;cursor:grab;">
+            <div style="width:34px;height:34px;border-radius:50%;background:#D9B98A;border:2px solid var(--line);"></div>
+            <span style="font-size:11px;color:var(--muted);">大人</span>
+          </div>
+          <div id="paletteChild" draggable="true" style="display:flex;flex-direction:column;align-items:center;gap:5px;cursor:grab;">
+            <div style="width:26px;height:26px;border-radius:50%;background:#E8A33D;border:2px solid var(--line);margin-top:4px;"></div>
+            <span style="font-size:11px;color:var(--muted);">子供</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button id="pinAddAdultBtn" style="flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">+ 大人を追加</button>
+          <button id="pinAddChildBtn" style="flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">+ 子供を追加</button>
+        </div>
+        <p class="note" id="pinCountDisplay" style="margin-top:0;">配置人数: 0人</p>
+        <div id="pinList" style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;margin-bottom:6px;"></div>
+
+        <div id="pinEditor" style="display:none;margin-top:10px;padding-top:14px;border-top:1px solid var(--line);">
+          <h2 class="grouplabel">選択中のピン</h2>
+          <div class="row-inline"><span class="lbl">名前</span><input type="text" id="pinNameInput" style="width:150px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-size:12.5px;padding:4px 6px;border-radius:4px;"></div>
+          <div class="row-inline"><span class="lbl">色</span><input type="color" id="pinColorInput" style="width:60px;height:26px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;"></div>
+          <label>左右位置(X) <span class="val" id="pinXVal">0.0 m</span></label>
+          <input type="range" id="pinXSlider" min="-15" max="15" step="0.1" value="0">
+          <label>奥行き位置(Z) <span class="val" id="pinZVal">0.0 m</span></label>
+          <input type="range" id="pinZSlider" min="0" max="30" step="0.1" value="0">
+          <button id="pinDeleteBtn" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;margin-top:6px;">このピンを削除</button>
+        </div>
+      </div>
+
+      <h2 class="grouplabel" style="margin-top:16px;">身長</h2>
+      <label>大人の身長 <span class="val" id="adultHVal">1.70 m</span></label>
+      <input type="range" id="adultH" min="1.4" max="2.0" step="0.02" value="1.70">
+      <label>子供の身長 <span class="val" id="childHVal">1.10 m</span></label>
+      <input type="range" id="childH" min="0.6" max="1.5" step="0.02" value="1.10">
+    </div>
+
+    <div class="tabpanel" id="tab-backdrop">
+      <h2 class="grouplabel">背景布</h2>
+      <div class="swatches" id="colorSwatches"></div>
+      <input type="color" id="colorCustom" value="#2e8b57" style="width:100%;height:28px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;margin-bottom:14px;">
+      <label>幅 <span class="val" id="bdWVal">4.4 m</span></label>
+      <input type="range" id="bdW" min="1" max="14" step="0.1" value="4.4">
+      <label>高さ <span class="val" id="bdHVal">2.5 m</span></label>
+      <input type="range" id="bdH" min="1" max="6" step="0.1" value="2.5">
+      <label>床に垂らす <span class="val" id="bdDrapeVal">1.7 m</span></label>
+      <input type="range" id="bdDrape" min="0" max="5" step="0.1" value="1.7">
+      <p class="note">「床に垂らす」を0にすると背景だけの布になります。</p>
+      <label>向き <span class="val" id="bdRotVal">0°</span></label>
+      <input type="range" id="bdRot" min="-45" max="45" step="1" value="0">
+      <label>左右位置 <span class="val" id="bdXVal">0.0 m</span></label>
+      <input type="range" id="bdX" min="-6" max="6" step="0.1" value="0">
+      <label>奥行き位置(手前の壁からの距離) <span class="val" id="bdDepthVal">14.5 m</span></label>
+      <input type="range" id="bdDepth" min="0.5" max="30" step="0.1" value="14.5">
+      <button id="bdDepthAuto" style="width:100%;padding:7px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;margin-bottom:14px;">奥の壁に合わせる</button>
+      <p class="note">側面ビューで見ながら、背景の前後位置を調整できます。人物列は背景の手前についてきます。</p>
+      <h2 class="grouplabel" style="margin-top:18px;">画像を貼る</h2>
+      <input type="file" id="bdImage" accept="image/*" style="width:100%;font-size:11.5px;color:var(--muted);margin-bottom:8px;">
+      <button id="bdImageClear" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12.5px;">画像を消す(色に戻す)</button>
+      <p class="note">JPG/PNGを1枚、パネル全体に引き伸ばして貼り付けます。</p>
+    </div>
+
+    <div class="tabpanel" id="tab-camera">
+      <h2 class="grouplabel">カメラ</h2>
+      <div class="lens-buttons" id="cameraList" style="margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <button id="cameraAddBtn" style="flex:1;padding:7px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">+ カメラ追加</button>
+        <button id="cameraDeleteBtn" style="flex:1;padding:7px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">選択中を削除</button>
+      </div>
+      <h2 class="grouplabel">カメラ位置</h2>
+      <label>奥行き位置(手前の壁からの距離) <span class="val" id="camDepthVal">2.0 m</span></label>
+      <input type="range" id="camDepth" min="0" max="30" step="0.1" value="2.0">
+      <p class="note" id="camToSubjectInfo" style="margin-top:-8px;">被写体(前列)までの距離: —</p>
+      <label>カメラの左右位置 <span class="val" id="camXVal">0.0 m</span></label>
+      <input type="range" id="camX" min="-15" max="15" step="0.1" value="0">
+      <label>カメラの高さ <span class="val" id="camHVal">1.30 m</span></label>
+      <input type="range" id="camH" min="0.3" max="10" step="0.05" value="1.30">
+      <label>チルト(上下角) <span class="val" id="tiltVal">-7.9°</span></label>
+      <input type="range" id="tilt" min="-30" max="30" step="0.1" value="-7.9">
+      <label>パン(左右角) <span class="val" id="panVal">0.0°</span></label>
+      <input type="range" id="pan" min="-60" max="60" step="0.5" value="0">
+
+      <h2 class="grouplabel" style="margin-top:18px;">カメラ種別</h2>
+      <div class="toggle">
+        <button data-mode="still" class="active">スチルカメラ</button>
+        <button data-mode="eng">ENG(ビデオ)カメラ</button>
+      </div>
+
+      <div id="panel-still">
+        <div class="toggle">
+          <button data-sensor="ff" class="active">フルサイズ</button>
+          <button data-sensor="apsc">APS-C</button>
+        </div>
+        <label>焦点距離 <span class="val" id="focalVal">35 mm</span></label>
+        <input type="range" id="focal" min="14" max="200" step="1" value="35">
+        <div class="lens-buttons" id="lensPresets"></div>
+      </div>
+
+      <div id="panel-eng" style="display:none;">
+        <label style="display:block;margin-bottom:6px;">機材プリセット</label>
+        <select id="engPreset" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-size:12.5px;padding:6px;border-radius:5px;margin-bottom:14px;"></select>
+        <label>ズーム位置(ワイド⇄テレ) <span class="val" id="engZoomVal">0%</span></label>
+        <input type="range" id="engZoom" min="0" max="100" step="1" value="0">
+        <p class="note" id="engInfo">—</p>
+      </div>
+
+      <div class="toggle" style="margin-top:14px;">
+        <button data-aspect="1.7778" class="active">16:9</button>
+        <button data-aspect="1.5">3:2</button>
+        <button data-aspect="1">1:1</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stage-head">
+      <div class="view-toggle">
+        <button data-view="top" class="active">上面</button>
+        <button data-view="side">側面</button>
+        <button data-view="persp">パース</button>
+        <button data-view="shoot">カメラ全画面</button>
+      </div>
+      <div class="legend">
+        <span><span class="sw" style="background:#D9B98A;"></span>大人</span>
+        <span><span class="sw" style="background:#E8A33D;"></span>子供</span>
+        <button id="screenshotBtn" title="スクリーンショットを保存" style="margin-left:10px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📷 保存</button>
+        <button id="configSaveBtn" title="設定を保存" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">💾 設定保存</button>
+        <button id="configLoadBtn" title="設定を読み込む" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📂 設定読込</button>
+        <input type="file" id="configLoadInput" accept="application/json" style="display:none;">
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="mainCanvas"></canvas>
+      <div class="overlay-info" id="overlayInfo"></div>
+      <div id="dimLabels"></div>
+      <div class="hint" id="dragHint" style="display:none;">ドラッグで回転・ホイールでズーム</div>
+      <div class="cam-preview">
+        <div class="cam-label" id="camLabel">カメラ 35mm 16:9</div>
+        <canvas id="camCanvas"></canvas>
+      </div>
+    </div>
+    <div class="verdict" id="verdict">—</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const state={
+  view:'top', sensorWidth:36, aspect:16/9, camMode:'still',
+  orbit:{ theta:2.356, phi:1.288, radius:13.25, target:new THREE.Vector3(0,1.3,7) },
+  dragging:false, lastX:0, lastY:0,
+  cameras:[{ name:'カメラ1', camDepth:2.0, camX:0, camH:1.3, tilt:-7.9, pan:0, camMode:'still', sensorWidth:36, aspect:16/9, focal:35, engPreset:0, engZoom:0 }],
+  activeCam:0,
+  blockingMode:false, pins:[], selectedPin:-1,
+  rowCounts:[2,3,5]
+};
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tabs button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    $('tab-'+b.dataset.tab).classList.add('active');
+  };
+});
+
+/* ---------- color swatches ---------- */
+const swatchColors=['#2e8b57','#2b5fad','#e8e8e8','#7a7a7a','#141414','#c9a876'];
+let backdropColor=swatchColors[0];
+function buildSwatches(){
+  const box=$('colorSwatches'); box.innerHTML='';
+  swatchColors.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='swatch-btn'+(c===backdropColor?' active':'');
+    b.style.background=c;
+    b.onclick=()=>{ backdropColor=c; $('colorCustom').value=c; buildSwatches(); rebuildScene(); };
+    box.appendChild(b);
+  });
+}
+$('colorCustom').addEventListener('input', ()=>{ backdropColor=$('colorCustom').value; buildSwatches(); rebuildScene(); });
+
+/* ---------- backdrop image texture ---------- */
+let backdropTexture=null;
+let backdropImageDataURL=null;
+function resizeImageDataURL(dataURL, maxDim){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width, h=img.height;
+      if(w>maxDim || h>maxDim){
+        if(w>=h){ h=Math.round(h*maxDim/w); w=maxDim; } else { w=Math.round(w*maxDim/h); h=maxDim; }
+      }
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(canvas.toDataURL('image/jpeg',0.85));
+    };
+    img.onerror=()=>resolve(dataURL);
+    img.src=dataURL;
+  });
+}
+$('bdImage').addEventListener('change', e=>{
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    resizeImageDataURL(ev.target.result, 1600).then(smallDataURL=>{
+      loadBackdropImageFromDataURL(smallDataURL);
+    });
+  };
+  reader.readAsDataURL(file);
+});
+function loadBackdropImageFromDataURL(dataURL){
+  const img=new Image();
+  img.onload=()=>{
+    if(backdropTexture) backdropTexture.dispose();
+    backdropTexture=new THREE.Texture(img);
+    backdropTexture.needsUpdate=true;
+    backdropTexture.encoding = THREE.sRGBEncoding;
+    backdropImageDataURL=dataURL;
+    onParamsChanged();
+  };
+  img.src=dataURL;
+}
+$('bdImageClear').addEventListener('click', ()=>{
+  if(backdropTexture){ backdropTexture.dispose(); backdropTexture=null; }
+  backdropImageDataURL=null;
+  $('bdImage').value='';
+  onParamsChanged();
+});
+$('bdDepthAuto').addEventListener('click', ()=>{
+  const studioD=parseFloat($('studioD').value);
+  $('bdDepth').value=Math.max(0.5, studioD-0.5).toFixed(1);
+  onParamsChanged();
+});
+
+/* ---------- lens presets ---------- */
+const lensSets={ ff:[14,24,35,50,85,135,200], apsc:[10,16,23,33,56,90,135] };
+function buildLensButtons(){
+  const box=$('lensPresets'); box.innerHTML='';
+  lensSets[state.sensorWidth===36?'ff':'apsc'].forEach(mm=>{
+    const b=document.createElement('button');
+    b.className='lens-btn'; b.textContent=mm+'mm'; b.dataset.mm=mm;
+    b.onclick=()=>{ $('focal').value=mm; onParamsChanged(); };
+    box.appendChild(b);
+  });
+}
+document.querySelectorAll('#tab-camera .toggle button[data-sensor]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tab-camera .toggle button[data-sensor]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.sensorWidth = b.dataset.sensor==='ff' ? 36 : 23.5;
+    buildLensButtons(); onParamsChanged();
+  };
+});
+document.querySelectorAll('#tab-camera .toggle button[data-aspect]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tab-camera .toggle button[data-aspect]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.aspect=parseFloat(b.dataset.aspect);
+    onParamsChanged();
+  };
+});
+
+/* ---------- camera mode: still vs ENG ---------- */
+const ENG_PRESETS=[
+  { name:'一体型: Sony HXR-NX5R (1/2.8型・×20)', nativeWide:4.1, nativeTele:82.0, equivWide:28.8, equivTele:576, fWide:1.6, fTele:3.5 },
+  { name:'一体型: Sony PXW-Z200 (1.0型・×20)', nativeWide:7.71, nativeTele:154.21, equivWide:24, equivTele:480, fWide:2.8, fTele:4.5 },
+  { name:'交換式ENGレンズ ×8 (2/3型B4・Jシリーズ相当/代表値)', nativeWide:6.0, nativeTele:48.0, equivWide:22.5, equivTele:180, fWide:1.6, fTele:1.6 },
+  { name:'交換式ENGレンズ ×24 (2/3型B4・XA/HAシリーズ相当/代表値)', nativeWide:8.5, nativeTele:204.0, equivWide:31.9, equivTele:765, fWide:1.8, fTele:2.7 }
+];
+function buildEngPresetSelect(){
+  const sel=$('engPreset'); sel.innerHTML='';
+  ENG_PRESETS.forEach((p,i)=>{
+    const opt=document.createElement('option'); opt.value=i; opt.textContent=p.name;
+    sel.appendChild(opt);
+  });
+}
+$('engPreset').addEventListener('change', onParamsChanged);
+$('engZoom').addEventListener('input', onParamsChanged);
+
+document.querySelectorAll('#tab-camera .toggle button[data-mode]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tab-camera .toggle button[data-mode]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.camMode=b.dataset.mode;
+    $('panel-still').style.display = state.camMode==='still' ? '' : 'none';
+    $('panel-eng').style.display = state.camMode==='eng' ? '' : 'none';
+    onParamsChanged();
+  };
+});
+function computeLens(){
+  if(state.camMode==='eng'){
+    const p=ENG_PRESETS[parseInt($('engPreset').value)||0];
+    const t=parseFloat($('engZoom').value)/100;
+    const focal=p.equivWide+(p.equivTele-p.equivWide)*t;
+    const nativeFocal=p.nativeWide+(p.nativeTele-p.nativeWide)*t;
+    const fNum=p.fWide+(p.fTele-p.fWide)*t;
+    return { focal, sensorWidth:36, label:`${p.name.split('(')[0].trim()} ネイティブ${nativeFocal.toFixed(1)}mm(35mm換算${focal.toFixed(0)}mm) F${fNum.toFixed(1)}` };
+  }
+  const focal=parseFloat($('focal').value);
+  return { focal, sensorWidth:state.sensorWidth, label:`${state.sensorWidth===36?'フルサイズ':'APS-C'} ${focal}mm` };
+}
+
+/* ---------- multi-camera management ---------- */
+function getCameraFieldsFromDOM(){
+  const existing=state.cameras[state.activeCam];
+  return {
+    name: existing ? existing.name : 'カメラ1',
+    camDepth:$('camDepth').value, camX:$('camX').value, camH:$('camH').value, tilt:$('tilt').value, pan:$('pan').value,
+    camMode:state.camMode, sensorWidth:state.sensorWidth, aspect:state.aspect,
+    focal:$('focal').value, engPreset:$('engPreset').value, engZoom:$('engZoom').value
+  };
+}
+function applyCameraFieldsToDOM(cam){
+  $('camDepth').value=cam.camDepth; $('camX').value=cam.camX; $('camH').value=cam.camH; $('tilt').value=cam.tilt;
+  $('pan').value=cam.pan||0;
+  $('focal').value=cam.focal; $('engPreset').value=cam.engPreset; $('engZoom').value=cam.engZoom;
+  selectToggleByClick('#tab-camera .toggle button[data-sensor]', b=> b.dataset.sensor === (cam.sensorWidth===36?'ff':'apsc'));
+  selectToggleByClick('#tab-camera .toggle button[data-mode]', b=> b.dataset.mode === cam.camMode);
+  selectToggleByClick('#tab-camera .toggle button[data-aspect]', b=> Math.abs(parseFloat(b.dataset.aspect)-cam.aspect)<0.01);
+}
+function syncActiveCameraFromDOM(){
+  if(!state.cameras[state.activeCam]) return;
+  state.cameras[state.activeCam]=getCameraFieldsFromDOM();
+}
+function rebuildCameraChips(){
+  const box=$('cameraList'); box.innerHTML='';
+  state.cameras.forEach((cam,i)=>{
+    const b=document.createElement('button');
+    b.className='lens-btn'+(i===state.activeCam?' active':'');
+    b.textContent=cam.name;
+    b.onclick=()=>selectCamera(i);
+    box.appendChild(b);
+  });
+}
+function selectCamera(i){
+  if(i===state.activeCam) return;
+  syncActiveCameraFromDOM();
+  state.activeCam=i;
+  applyCameraFieldsToDOM(state.cameras[i]);
+  rebuildCameraChips();
+  onParamsChanged();
+}
+function addCamera(){
+  syncActiveCameraFromDOM();
+  const base=state.cameras[state.activeCam];
+  const newCam=Object.assign({}, base, { name:'カメラ'+(state.cameras.length+1), camX:(parseFloat(base.camX)||0)+1 });
+  state.cameras.push(newCam);
+  state.activeCam=state.cameras.length-1;
+  applyCameraFieldsToDOM(newCam);
+  rebuildCameraChips();
+  onParamsChanged();
+}
+function deleteCamera(){
+  if(state.cameras.length<=1) return;
+  state.cameras.splice(state.activeCam,1);
+  state.activeCam=Math.max(0, state.activeCam-1);
+  applyCameraFieldsToDOM(state.cameras[state.activeCam]);
+  rebuildCameraChips();
+  onParamsChanged();
+}
+$('cameraAddBtn').addEventListener('click', addCamera);
+$('cameraDeleteBtn').addEventListener('click', deleteCamera);
+
+/* ---------- view toggle ---------- */
+document.querySelectorAll('.view-toggle button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.view-toggle button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.view=b.dataset.view;
+    $('dragHint').style.display = state.view==='persp' ? 'block':'none';
+  };
+});
+
+/* ---------- people layout (explicit per-row counts) ---------- */
+function buildRowCountInputs(){
+  const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
+  while(state.rowCounts.length<rows) state.rowCounts.push(3);
+  state.rowCounts.length=rows;
+  const box=$('rowCountInputs'); box.innerHTML='';
+  state.rowCounts.forEach((count,i)=>{
+    const row=document.createElement('div');
+    row.className='row-inline';
+    const label=i===0?'最前列':(i===rows-1?'最後列':`${i+1}列目`);
+    const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=label;
+    const input=document.createElement('input');
+    input.type='number'; input.min='0'; input.max='80'; input.value=count; input.style.width='64px';
+    input.addEventListener('input', ()=>{ state.rowCounts[i]=Math.max(0, parseInt(input.value)||0); onParamsChanged(); });
+    row.appendChild(lbl); row.appendChild(input);
+    box.appendChild(row);
+  });
+}
+$('rows').addEventListener('input', ()=>{ buildRowCountInputs(); onParamsChanged(); });
+function getRowCounts(){
+  const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
+  while(state.rowCounts.length<rows) state.rowCounts.push(3);
+  state.rowCounts.length=rows;
+  return state.rowCounts.slice();
+}
+function updatePeopleTotals(){
+  const rowCounts=getRowCounts();
+  const total=rowCounts.reduce((a,b)=>a+b,0);
+  const child=Math.max(0, Math.min(total, parseInt($('childCount').value)||0));
+  $('childCount').value=child;
+  const adult=total-child;
+  $('totalDisplay').textContent=total;
+  $('adultCountDisplay').textContent=adult;
+  return {total, child, adult, rowCounts};
+}
+$('childCount').addEventListener('input', onParamsChanged);
+
+/* ---------- people mode: photo vs blocking ---------- */
+document.querySelectorAll('#tab-people .toggle button[data-peoplemode]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tab-people .toggle button[data-peoplemode]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.blockingMode = b.dataset.peoplemode==='blocking';
+    $('peoplePanel-photo').style.display = state.blockingMode ? 'none' : '';
+    $('peoplePanel-blocking').style.display = state.blockingMode ? '' : 'none';
+    if(state.blockingMode && state.pins.length===0) seedPinsFromCurrentLayout();
+    rebuildPinList();
+    updatePinEditor();
+    onParamsChanged();
+  };
+});
+function seedPinsFromCurrentLayout(){
+  const {child:childCount, rowCounts:rowCountsRaw}=updatePeopleTotals();
+  const rows=rowCountsRaw.length;
+  const spacing=parseFloat($('spacing').value), rowGap=parseFloat($('rowGap').value);
+  const bdGap=parseFloat($('bdGap').value), backdropDepth=parseFloat($('bdDepth').value);
+  const rowsData=distributeTypes(rowCountsRaw, childCount);
+  const pins=[];
+  let adultN=0, childN=0;
+  rowsData.forEach((rowPeople,i)=>{
+    const z=backdropDepth-bdGap-(rows-1-i)*rowGap;
+    const n=rowPeople.length; const rowWidth=(n-1)*spacing;
+    rowPeople.forEach((type,j)=>{
+      if(type==='adult'){ adultN++; } else { childN++; }
+      pins.push({x:-rowWidth/2+j*spacing, z, type, color:type==='adult'?'#D9B98A':'#E8A33D', name:(type==='adult'?'大人':'子供')+(type==='adult'?adultN:childN)});
+    });
+  });
+  state.pins=pins;
+}
+function addPin(type, x, z){
+  const n=state.pins.filter(p=>p.type===type).length+1;
+  state.pins.push({ x, z, type, color: type==='adult'?'#D9B98A':'#E8A33D', name:(type==='adult'?'大人':'子供')+n });
+  state.selectedPin=state.pins.length-1;
+  rebuildPinList();
+  onParamsChanged();
+}
+function rebuildPinList(){
+  $('pinCountDisplay').textContent=`配置人数: ${state.pins.length}人(大人${state.pins.filter(p=>p.type==='adult').length}・子供${state.pins.filter(p=>p.type==='child').length})`;
+  const box=$('pinList'); box.innerHTML='';
+  state.pins.forEach((pin,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;border:1px solid '+(i===state.selectedPin?'var(--amber)':'var(--line)')+';background:'+(i===state.selectedPin?'var(--amber-dim)':'var(--panel-2)')+';';
+    const dot=document.createElement('span');
+    dot.style.cssText=`width:14px;height:14px;border-radius:50%;background:${pin.color};flex-shrink:0;`;
+    const label=document.createElement('span');
+    label.style.cssText='flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    label.textContent=pin.name;
+    const del=document.createElement('button');
+    del.textContent='×';
+    del.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;';
+    del.onclick=(ev)=>{ ev.stopPropagation(); state.pins.splice(i,1); if(state.selectedPin===i) state.selectedPin=-1; else if(state.selectedPin>i) state.selectedPin--; rebuildPinList(); updatePinEditor(); onParamsChanged(); };
+    row.onclick=()=>{ state.selectedPin=i; rebuildPinList(); updatePinEditor(); onParamsChanged(); };
+    row.appendChild(dot); row.appendChild(label); row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+function updatePinEditor(){
+  const pin=state.pins[state.selectedPin];
+  if(!pin){ $('pinEditor').style.display='none'; return; }
+  $('pinEditor').style.display='';
+  $('pinNameInput').value=pin.name;
+  $('pinColorInput').value=pin.color;
+  $('pinXSlider').value=pin.x; $('pinXVal').textContent=pin.x.toFixed(1)+' m';
+  $('pinZSlider').value=pin.z; $('pinZVal').textContent=pin.z.toFixed(1)+' m';
+}
+$('pinNameInput').addEventListener('input', ()=>{
+  const pin=state.pins[state.selectedPin]; if(!pin) return;
+  pin.name=$('pinNameInput').value; rebuildPinList();
+});
+$('pinColorInput').addEventListener('input', ()=>{
+  const pin=state.pins[state.selectedPin]; if(!pin) return;
+  pin.color=$('pinColorInput').value; rebuildPinList(); onParamsChanged();
+});
+$('pinXSlider').addEventListener('input', ()=>{
+  const pin=state.pins[state.selectedPin]; if(!pin) return;
+  pin.x=parseFloat($('pinXSlider').value); $('pinXVal').textContent=pin.x.toFixed(1)+' m'; onParamsChanged();
+});
+$('pinZSlider').addEventListener('input', ()=>{
+  const pin=state.pins[state.selectedPin]; if(!pin) return;
+  pin.z=parseFloat($('pinZSlider').value); $('pinZVal').textContent=pin.z.toFixed(1)+' m'; onParamsChanged();
+});
+$('pinAddAdultBtn').addEventListener('click', ()=>{
+  const bdGap=parseFloat($('bdGap').value), backdropDepth=parseFloat($('bdDepth').value);
+  addPin('adult', 0, backdropDepth-bdGap); updatePinEditor();
+});
+$('pinAddChildBtn').addEventListener('click', ()=>{
+  const bdGap=parseFloat($('bdGap').value), backdropDepth=parseFloat($('bdDepth').value);
+  addPin('child', 0, backdropDepth-bdGap); updatePinEditor();
+});
+$('pinDeleteBtn').addEventListener('click', ()=>{
+  if(state.selectedPin>=0 && state.selectedPin<state.pins.length){
+    state.pins.splice(state.selectedPin,1);
+    state.selectedPin=-1;
+    rebuildPinList(); updatePinEditor(); onParamsChanged();
+  }
+});
+['paletteAdult','paletteChild'].forEach(id=>{
+  $(id).addEventListener('dragstart', e=>{
+    e.dataTransfer.setData('text/plain', id==='paletteAdult'?'adult':'child');
+    e.dataTransfer.effectAllowed='copy';
+  });
+});
+
+function distributeTypes(rowCounts, totalChildren){
+  let remaining=Math.max(0,Math.round(totalChildren));
+  return rowCounts.map(n=>{
+    const c=Math.min(n,remaining); remaining-=c;
+    const arr=[]; for(let k=0;k<c;k++) arr.push('child'); for(let k=c;k<n;k++) arr.push('adult');
+    return arr;
+  });
+}
+
+/* ---------- three.js setup ---------- */
+const stageEl=$('stage');
+const renderer=new THREE.WebGLRenderer({canvas:$('mainCanvas'), antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+const camRenderer=new THREE.WebGLRenderer({canvas:$('camCanvas'), antialias:true});
+camRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+camRenderer.outputEncoding=THREE.sRGBEncoding;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x14161a);
+scene.add(new THREE.HemisphereLight(0xffffff,0x33383f,1.1));
+const dirLight=new THREE.DirectionalLight(0xffffff,0.6);
+dirLight.position.set(4,10,-6);
+scene.add(dirLight);
+
+const studioGroup=new THREE.Group(); scene.add(studioGroup);
+const dynamicGroup=new THREE.Group(); scene.add(dynamicGroup);
+
+const topCam=new THREE.OrthographicCamera(); topCam.up.set(0,0,-1); topCam.layers.enable(1);
+const sideCam=new THREE.OrthographicCamera(); sideCam.layers.enable(1);
+const perspCam=new THREE.PerspectiveCamera(50,1,0.1,200); perspCam.layers.enable(1);
+const shootCam=new THREE.PerspectiveCamera(50,1,0.1,300);
+
+function disposeGroup(g){
+  g.children.slice().forEach(c=>{
+    if(c.geometry) c.geometry.dispose();
+    if(c.material){ if(Array.isArray(c.material)) c.material.forEach(m=>m.dispose()); else c.material.dispose(); }
+    if(c.children && c.children.length) disposeGroup(c);
+    g.remove(c);
+  });
+}
+
+/* ---------- studio room ---------- */
+function rebuildStudio(){
+  disposeGroup(studioGroup);
+  const w=parseFloat($('studioW').value), d=parseFloat($('studioD').value), h=parseFloat($('studioH').value);
+  const grid=new THREE.GridHelper(Math.max(w,d)*1.4, 24, 0x333941, 0x22262c);
+  grid.position.set(0,0,d/2);
+  studioGroup.add(grid);
+  const boxGeo=new THREE.BoxGeometry(w,h,d);
+  const edges=new THREE.EdgesGeometry(boxGeo);
+  const boxLines=new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color:0x3a4048}));
+  boxLines.position.set(0,h/2,d/2);
+  studioGroup.add(boxLines);
+  boxGeo.dispose();
+  return {w,d,h};
+}
+
+/* ---------- backdrop + people ---------- */
+function makePerson(x,z,height,isChild,colorOverride){
+  const group=new THREE.Group();
+  const headR=height*0.13;
+  const bodyH=Math.max(0.05, height-2*headR);
+  const color=colorOverride!==undefined ? colorOverride : (isChild? 0xE8A33D : 0xD9B98A);
+  const bodyMat=new THREE.MeshStandardMaterial({color, roughness:0.85});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(height*0.11, height*0.14, bodyH, 12), bodyMat);
+  body.position.y=bodyH/2;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(headR,14,10), bodyMat);
+  head.position.y=bodyH+headR;
+  group.add(body); group.add(head);
+  group.position.set(x,0,z);
+  return group;
+}
+
+let lastRowCounts=[10];
+function rebuildScene(){
+  disposeGroup(dynamicGroup);
+
+  const {total, child:childCount, rowCounts:rowCountsRaw}=updatePeopleTotals();
+  const rows=rowCountsRaw.length;
+  const spacing=parseFloat($('spacing').value);
+  const rowGap=parseFloat($('rowGap').value);
+  const adultH=parseFloat($('adultH').value);
+  const childHt=parseFloat($('childH').value);
+  const bdGap=parseFloat($('bdGap').value);
+  const backdropDepth=parseFloat($('bdDepth').value);
+
+  const rowsData=distributeTypes(rowCountsRaw, childCount);
+  lastRowCounts=rowsData.map(r=>r.length);
+
+  let maxRowWidth;
+  if(state.blockingMode){
+    $('rowBreakdownDisplay').textContent='';
+    $('pinCountDisplay').textContent=`配置人数: ${state.pins.length}人(大人${state.pins.filter(p=>p.type==='adult').length}・子供${state.pins.filter(p=>p.type==='child').length})`;
+    state.pins.forEach((pin,i)=>{
+      const h=pin.type==='child'?childHt:adultH;
+      const person=makePerson(pin.x, pin.z, h, pin.type==='child', pin.color);
+      if(i===state.selectedPin){
+        const ring=new THREE.Mesh(new THREE.RingGeometry(h*0.22,h*0.28,20), new THREE.MeshBasicMaterial({color:0xE8A33D, side:THREE.DoubleSide}));
+        ring.rotation.x=-Math.PI/2; ring.position.y=0.02;
+        person.add(ring);
+      }
+      dynamicGroup.add(person);
+    });
+    const xs=state.pins.map(p=>p.x);
+    maxRowWidth = xs.length ? (Math.max(...xs)-Math.min(...xs)) : 0;
+  } else {
+    $('pinCountDisplay').textContent='';
+    $('rowBreakdownDisplay').textContent='行ごとの人数: '+
+      lastRowCounts.map((n,i)=>(i===0?'前列':(i===lastRowCounts.length-1?'最後列':`${i+1}列目`))+n).join(' → ')+
+      (lastRowCounts.reduce((a,b)=>a+b,0)!==total?`(合計${lastRowCounts.reduce((a,b)=>a+b,0)}人・指定と差異あり)`:'');
+
+    rowsData.forEach((rowPeople,i)=>{
+      const depth=backdropDepth-bdGap-(rows-1-i)*rowGap;
+      const n=rowPeople.length; const rowWidth=(n-1)*spacing;
+      rowPeople.forEach((type,j)=>{
+        const x=-rowWidth/2+j*spacing;
+        dynamicGroup.add(makePerson(x, depth, type==='child'?childHt:adultH, type==='child'));
+      });
+    });
+    maxRowWidth=Math.max(0, ...rowsData.map((rowPeople,i)=>(rowPeople.length-1)*spacing));
+  }
+
+  const bdW=parseFloat($('bdW').value), bdH=parseFloat($('bdH').value);
+  const drape=parseFloat($('bdDrape').value), rotDeg=parseFloat($('bdRot').value), offX=parseFloat($('bdX').value);
+
+  const bdGroup=new THREE.Group();
+  const bdMat=new THREE.MeshStandardMaterial({
+    color: backdropTexture ? 0xffffff : new THREE.Color(backdropColor),
+    map: backdropTexture || null,
+    roughness:0.9, side:THREE.DoubleSide
+  });
+  const panel=new THREE.Mesh(new THREE.PlaneGeometry(bdW,bdH), bdMat);
+  panel.rotation.y=Math.PI;
+  panel.position.set(0,bdH/2,0);
+  bdGroup.add(panel);
+  if(drape>0.01){
+    const floorPiece=new THREE.Mesh(new THREE.PlaneGeometry(bdW,drape), bdMat);
+    floorPiece.rotation.x=-Math.PI/2;
+    floorPiece.position.set(0,0.005,-drape/2);
+    bdGroup.add(floorPiece);
+  }
+  bdGroup.position.set(offX,0,backdropDepth);
+  bdGroup.rotation.y=rotDeg*Math.PI/180;
+  dynamicGroup.add(bdGroup);
+
+  state.cameras.forEach((cam,i)=>{
+    const isActive=i===state.activeCam;
+    const cx=parseFloat(cam.camX)||0, ch=parseFloat(cam.camH)||0, cz=parseFloat(cam.camDepth)||0;
+    const color=isActive?0xE8A33D:0x6B7078;
+    const camMarker=new THREE.Group();
+    const camBody=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.2,0.35), new THREE.MeshStandardMaterial({color}));
+    const camLens=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.15,10), new THREE.MeshStandardMaterial({color:0x333941}));
+    camLens.rotation.x=Math.PI/2; camLens.position.z=0.2;
+    camBody.layers.set(1); camLens.layers.set(1);
+    camMarker.add(camBody); camMarker.add(camLens);
+    camMarker.position.set(cx,ch,cz);
+    camMarker.rotation.y=(parseFloat(cam.pan)||0)*Math.PI/180;
+    camMarker.userData.camLabel=cam.name;
+    dynamicGroup.add(camMarker);
+  });
+  const activeCamState=state.cameras[state.activeCam];
+  const camZ=parseFloat(activeCamState.camDepth);
+
+  const frontRowZ=backdropDepth-bdGap-(rows-1)*rowGap;
+  return {backdropDepth, bdW, bdH, bdX:offX, maxRowWidth, camZ, frontRowZ};
+}
+
+/* ---------- camera + HUD ---------- */
+function fmtM(v){ return v.toFixed(2)+' m'; }
+
+function updateCamerasAndHUD(studioDims, bdInfo){
+  const lens=computeLens();
+  const focal=lens.focal;
+  const sensorW=lens.sensorWidth;
+  const sensorH=sensorW/state.aspect;
+  const camH=parseFloat($('camH').value);
+  const tilt=parseFloat($('tilt').value);
+  const pan=parseFloat($('pan').value);
+
+  const fovRad=2*Math.atan(sensorW/(2*focal));
+  const fovVRad=2*Math.atan(sensorH/(2*focal));
+
+  const stageW=stageEl.clientWidth, stageH=stageEl.clientHeight;
+  const canvasAspect=stageW/Math.max(1,stageH);
+
+  const camX=parseFloat($('camX').value);
+  const camZ=parseFloat($('camDepth').value);
+  shootCam.fov=fovVRad*180/Math.PI;
+  shootCam.aspect=state.aspect;
+  shootCam.position.set(camX,camH,camZ);
+  {
+    const tiltRad=tilt*Math.PI/180, panRad=pan*Math.PI/180;
+    const lookDir=new THREE.Vector3(Math.sin(panRad)*Math.cos(tiltRad), Math.sin(tiltRad), Math.cos(panRad)*Math.cos(tiltRad));
+    shootCam.up.set(0,1,0);
+    shootCam.lookAt(shootCam.position.clone().add(lookDir));
+  }
+  shootCam.updateProjectionMatrix();
+
+  perspCam.aspect=canvasAspect;
+  perspCam.updateProjectionMatrix();
+
+  $('camToSubjectInfo').textContent=`被写体(前列)までの距離: ${(bdInfo.frontRowZ-camZ).toFixed(2)} m`;
+
+  const centerZ=studioDims.d/2;
+  const contentHalfD=studioDims.d/2+1;
+  const halfW=Math.max(studioDims.w/2+1, Math.abs(camX)+2, Math.abs(bdInfo.bdX)+bdInfo.bdW/2+1);
+  const topExtent=Math.max(halfW, contentHalfD*canvasAspect);
+  topCam.left=-topExtent; topCam.right=topExtent;
+  topCam.top=topExtent/canvasAspect; topCam.bottom=-topExtent/canvasAspect;
+  topCam.near=0.1; topCam.far=200;
+  topCam.position.set(0, studioDims.h+15, centerZ);
+  topCam.lookAt(0,0,centerZ);
+  topCam.updateProjectionMatrix();
+
+  const sideExtent=Math.max(contentHalfD, (studioDims.h/2+1)*canvasAspect);
+  sideCam.left=-sideExtent; sideCam.right=sideExtent;
+  sideCam.top=sideExtent/canvasAspect; sideCam.bottom=-sideExtent/canvasAspect;
+  sideCam.near=0.1; sideCam.far=200;
+  sideCam.position.set(studioDims.w+15, studioDims.h/2, centerZ);
+  sideCam.lookAt(0, studioDims.h/2, centerZ);
+  sideCam.updateProjectionMatrix();
+
+  const aspectLabel = Math.abs(state.aspect-16/9)<0.01?'16:9':(Math.abs(state.aspect-1.5)<0.01?'3:2':'1:1');
+  const activeName=state.cameras[state.activeCam] ? state.cameras[state.activeCam].name : '';
+  $('camLabel').textContent=`${activeName} ${lens.label} ${aspectLabel}`;
+  $('overlayInfo').innerHTML=
+    `${activeName}<br>`+
+    `スタジオ ${studioDims.w.toFixed(1)} x ${studioDims.d.toFixed(1)} x 高${studioDims.h.toFixed(1)}m<br>`+
+    `${lens.label} ${aspectLabel}<br>`+
+    `カメラ高さ ${camH.toFixed(2)}m　チルト ${tilt.toFixed(1)}°`;
+
+  const backdropDepth=bdInfo.backdropDepth;
+  const camToBackdrop=backdropDepth-camZ;
+  const frameHalfW=camToBackdrop*Math.tan(fovRad/2);
+  const leftFrameEdge=camX-frameHalfW, rightFrameEdge=camX+frameHalfW;
+  const leftBdEdge=bdInfo.bdX-bdInfo.bdW/2, rightBdEdge=bdInfo.bdX+bdInfo.bdW/2;
+  const leftMargin=leftFrameEdge-leftBdEdge;
+  const rightMargin=rightBdEdge-rightFrameEdge;
+  const requiredWidth=2*frameHalfW;
+
+  const frameHalfH=camToBackdrop*Math.tan(fovVRad/2);
+  const requiredHeight=camH+frameHalfH;
+  const topMargin=bdInfo.bdH-requiredHeight;
+
+  const verdictEl=$('verdict');
+  const wOK=leftMargin>=0 && rightMargin>=0, hOK=topMargin>=0;
+  if(wOK && hOK){
+    verdictEl.className='verdict ok';
+    verdictEl.innerHTML=`<b class="status">◯ 背景は足ります</b> — 左${leftMargin.toFixed(2)}m・右${rightMargin.toFixed(2)}m、頭上に${topMargin.toFixed(2)}mの余裕があります。必要最小サイズの目安: 幅${requiredWidth.toFixed(2)}m × 高さ${requiredHeight.toFixed(2)}m。`;
+  } else {
+    const parts=[];
+    if(leftMargin<0) parts.push(`左端が${Math.abs(leftMargin).toFixed(2)}m不足`);
+    if(rightMargin<0) parts.push(`右端が${Math.abs(rightMargin).toFixed(2)}m不足`);
+    if(topMargin<0) parts.push(`頭上が${Math.abs(topMargin).toFixed(2)}m不足`);
+    verdictEl.className='verdict ng';
+    verdictEl.innerHTML=`<b class="status">✕ 背景が足りません</b> — ${parts.join('・')}。発注の目安: 幅${requiredWidth.toFixed(2)}m以上 × 高さ${requiredHeight.toFixed(2)}m以上。`;
+  }
+}
+
+/* ---------- dimension labels ---------- */
+function project(camera, vec3){
+  const p=vec3.clone().project(camera);
+  return { x:(p.x*0.5+0.5)*stageEl.clientWidth, y:(-p.y*0.5+0.5)*stageEl.clientHeight, visible:p.z<1 };
+}
+function updateDimLabels(activeCam, studioDims, bdInfo){
+  const box=$('dimLabels'); box.innerHTML='';
+  const pts=[
+    {p:new THREE.Vector3(0,0.02,0), text:`幅 ${studioDims.w.toFixed(1)} m`},
+    {p:new THREE.Vector3(-studioDims.w/2,0.02,studioDims.d/2), text:`奥行 ${studioDims.d.toFixed(1)} m`},
+    {p:new THREE.Vector3(bdInfo.bdX, parseFloat($('bdH').value)+0.3, bdInfo.backdropDepth), text:`背景 ${bdInfo.bdW.toFixed(1)} m`}
+  ];
+  state.cameras.forEach(cam=>{
+    pts.push({p:new THREE.Vector3(parseFloat(cam.camX)||0, (parseFloat(cam.camH)||0)+0.3, parseFloat(cam.camDepth)||0), text:cam.name});
+  });
+  if(state.blockingMode){
+    const adultH=parseFloat($('adultH').value), childH=parseFloat($('childH').value);
+    state.pins.forEach(pin=>{
+      const h=pin.type==='child'?childH:adultH;
+      pts.push({p:new THREE.Vector3(pin.x, h+0.15, pin.z), text:pin.name});
+    });
+  }
+  pts.forEach(({p,text})=>{
+    const s=project(activeCam,p);
+    if(!s.visible || s.x<-50 || s.x>stageEl.clientWidth+50 || s.y<-50 || s.y>stageEl.clientHeight+50) return;
+    const d=document.createElement('div');
+    d.className='dim-label'; d.textContent=text;
+    d.style.left=s.x+'px'; d.style.top=s.y+'px';
+    box.appendChild(d);
+  });
+}
+
+/* ---------- orbit control (perspective view only) ---------- */
+const mainCanvas=$('mainCanvas');
+mainCanvas.addEventListener('dragover', e=>{ if(state.blockingMode) e.preventDefault(); });
+mainCanvas.addEventListener('drop', e=>{
+  if(!state.blockingMode) return;
+  e.preventDefault();
+  const type=e.dataTransfer.getData('text/plain');
+  if(type!=='adult' && type!=='child') return;
+  const rect=mainCanvas.getBoundingClientRect();
+  const px=e.clientX-rect.left, py=e.clientY-rect.top;
+  let x=0, z=parseFloat($('bdDepth').value)-parseFloat($('bdGap').value);
+  if(state.view==='top'){
+    const wp=screenToWorldXZ(px,py,topCam);
+    x=wp.x; z=Math.max(0, wp.z);
+  }
+  addPin(type, x, z);
+  updatePinEditor();
+});
+function updatePerspCameraFromOrbit(){
+  const o=state.orbit;
+  const x=o.target.x+o.radius*Math.sin(o.phi)*Math.sin(o.theta);
+  const y=o.target.y+o.radius*Math.cos(o.phi);
+  const z=o.target.z+o.radius*Math.sin(o.phi)*Math.cos(o.theta);
+  perspCam.position.set(x,y,z);
+  perspCam.lookAt(o.target);
+}
+let dragTargets=[]; // populated each frame while in top view: {type,index,x,y}
+let dragObject=null; // currently grabbed target
+function screenToWorldXZ(px,py,camera){
+  const ndcX=(px/stageEl.clientWidth)*2-1;
+  const ndcY=-(py/stageEl.clientHeight)*2+1;
+  const vec=new THREE.Vector3(ndcX,ndcY,0.5).unproject(camera);
+  return {x:vec.x, z:vec.z};
+}
+function findNearestDragTarget(px,py){
+  let best=null, bestDist=22;
+  dragTargets.forEach(t=>{
+    const d=Math.hypot(t.x-px, t.y-py);
+    if(d<bestDist){ bestDist=d; best=t; }
+  });
+  return best;
+}
+mainCanvas.addEventListener('pointerdown', e=>{
+  if(state.view==='persp'){
+    state.dragging=true; state.lastX=e.clientX; state.lastY=e.clientY; return;
+  }
+  if(state.view==='top'){
+    const rect=mainCanvas.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const target=findNearestDragTarget(px,py);
+    if(target){
+      dragObject=target;
+      if(target.type==='camera' && target.index!==state.activeCam) selectCamera(target.index);
+      if(target.type==='pin') state.selectedPin=target.index;
+    } else if(state.blockingMode && state.selectedPin!==-1){
+      state.selectedPin=-1;
+      onParamsChanged();
+    }
+  }
+});
+window.addEventListener('pointerup', ()=>{ state.dragging=false; dragObject=null; });
+window.addEventListener('pointermove', e=>{
+  if(state.dragging && state.view==='persp'){
+    const dx=e.clientX-state.lastX, dy=e.clientY-state.lastY;
+    state.lastX=e.clientX; state.lastY=e.clientY;
+    state.orbit.theta -= dx*0.006;
+    state.orbit.phi = Math.min(Math.PI-0.05, Math.max(0.15, state.orbit.phi - dy*0.006));
+    updatePerspCameraFromOrbit();
+    return;
+  }
+  if(dragObject && state.view==='top'){
+    const rect=mainCanvas.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const wp=screenToWorldXZ(px,py,topCam);
+    if(dragObject.type==='camera'){
+      const studioD=parseFloat($('studioD').value), studioW=parseFloat($('studioW').value);
+      $('camDepth').value=Math.max(0, Math.min(studioD, wp.z)).toFixed(2);
+      $('camX').value=Math.max(-studioW, Math.min(studioW, wp.x)).toFixed(2);
+      onParamsChanged();
+    } else if(dragObject.type==='pin' && state.pins[dragObject.index]){
+      state.pins[dragObject.index].x=wp.x;
+      state.pins[dragObject.index].z=Math.max(0, wp.z);
+      onParamsChanged();
+    }
+    return;
+  }
+  if(state.view==='top'){
+    const rect=mainCanvas.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    mainCanvas.style.cursor = findNearestDragTarget(px,py) ? 'grab' : 'default';
+  }
+});
+mainCanvas.addEventListener('wheel', e=>{
+  if(state.view!=='persp') return;
+  e.preventDefault();
+  state.orbit.radius = Math.min(60, Math.max(3, state.orbit.radius + e.deltaY*0.02));
+  updatePerspCameraFromOrbit();
+}, {passive:false});
+
+/* ---------- resize ---------- */
+function resizeRenderers(){
+  const w=stageEl.clientWidth, h=stageEl.clientHeight;
+  renderer.setSize(w,h,false);
+  const pw=$('camCanvas').parentElement.clientWidth;
+  camRenderer.setSize(pw, pw/state.aspect, false);
+}
+window.addEventListener('resize', ()=>{ resizeRenderers(); onParamsChanged(); });
+
+/* ---------- master update ---------- */
+let studioDims={w:12,d:15,h:5.5}, bdInfo={backdropDepth:8,bdW:4.4,bdH:2.5};
+function onParamsChanged(){
+  document.querySelectorAll('.lens-btn').forEach(b=>{ b.classList.toggle('active', parseFloat(b.dataset.mm)===parseFloat($('focal').value)); });
+
+  $('studioWVal').textContent=parseFloat($('studioW').value).toFixed(1)+' m';
+  $('studioDVal').textContent=parseFloat($('studioD').value).toFixed(1)+' m';
+  $('studioHVal').textContent=parseFloat($('studioH').value).toFixed(1)+' m';
+  $('spacingVal').textContent=parseFloat($('spacing').value).toFixed(2)+' m';
+  $('rowGapVal').textContent=parseFloat($('rowGap').value).toFixed(2)+' m';
+  $('bdGapVal').textContent=parseFloat($('bdGap').value).toFixed(1)+' m';
+  $('adultHVal').textContent=parseFloat($('adultH').value).toFixed(2)+' m';
+  $('childHVal').textContent=parseFloat($('childH').value).toFixed(2)+' m';
+  $('bdWVal').textContent=parseFloat($('bdW').value).toFixed(1)+' m';
+  $('bdHVal').textContent=parseFloat($('bdH').value).toFixed(1)+' m';
+  $('bdDrapeVal').textContent=parseFloat($('bdDrape').value).toFixed(1)+' m';
+  $('bdRotVal').textContent=parseFloat($('bdRot').value).toFixed(0)+'°';
+  $('bdXVal').textContent=parseFloat($('bdX').value).toFixed(1)+' m';
+  const studioDforClamp=parseFloat($('studioD').value);
+  $('bdDepth').max=studioDforClamp;
+  $('camDepth').max=studioDforClamp;
+  if(parseFloat($('bdDepth').value)>studioDforClamp) $('bdDepth').value=studioDforClamp;
+  if(parseFloat($('camDepth').value)>studioDforClamp) $('camDepth').value=studioDforClamp;
+  const studioHforClamp=parseFloat($('studioH').value);
+  $('camH').max=studioHforClamp;
+  if(parseFloat($('camH').value)>studioHforClamp) $('camH').value=studioHforClamp;
+  const studioWforClamp=parseFloat($('studioW').value);
+  const halfW=studioWforClamp/2;
+  $('camX').min=-halfW; $('camX').max=halfW;
+  $('bdX').min=-halfW; $('bdX').max=halfW;
+  if(parseFloat($('camX').value)>halfW) $('camX').value=halfW;
+  if(parseFloat($('camX').value)<-halfW) $('camX').value=-halfW;
+  if(parseFloat($('bdX').value)>halfW) $('bdX').value=halfW;
+  if(parseFloat($('bdX').value)<-halfW) $('bdX').value=-halfW;
+  $('bdDepthVal').textContent=parseFloat($('bdDepth').value).toFixed(1)+' m';
+  $('camDepthVal').textContent=parseFloat($('camDepth').value).toFixed(1)+' m';
+  $('camXVal').textContent=parseFloat($('camX').value).toFixed(1)+' m';
+  $('camHVal').textContent=parseFloat($('camH').value).toFixed(2)+' m';
+  $('tiltVal').textContent=parseFloat($('tilt').value).toFixed(1)+'°';
+  $('panVal').textContent=parseFloat($('pan').value).toFixed(1)+'°';
+  $('focalVal').textContent=parseFloat($('focal').value)+' mm';
+  $('engZoomVal').textContent=parseFloat($('engZoom').value).toFixed(0)+'%';
+  const engP=ENG_PRESETS[parseInt($('engPreset').value)||0];
+  const engT=parseFloat($('engZoom').value)/100;
+  const engNative=engP.nativeWide+(engP.nativeTele-engP.nativeWide)*engT;
+  const engEquiv=engP.equivWide+(engP.equivTele-engP.equivWide)*engT;
+  $('engInfo').textContent=`ネイティブ ${engNative.toFixed(1)}mm ／ 35mm換算 ${engEquiv.toFixed(0)}mm`;
+
+  syncActiveCameraFromDOM();
+  studioDims=rebuildStudio();
+  bdInfo=rebuildScene();
+  resizeRenderers();
+  updateCamerasAndHUD(studioDims, bdInfo);
+}
+
+['studioW','studioD','studioH','spacing','rowGap','bdGap',
+ 'adultH','childH','bdW','bdH','bdDrape','bdRot','bdX','bdDepth','camDepth','camH','camX','tilt','pan','focal'].forEach(id=>{
+  $(id).addEventListener('input', onParamsChanged);
+});
+
+/* ---------- render loop ---------- */
+function getActiveCam(){
+  if(state.view==='top') return topCam;
+  if(state.view==='side') return sideCam;
+  if(state.view==='persp') return perspCam;
+  return shootCam;
+}
+function animate(){
+  requestAnimationFrame(animate);
+  const activeCam=getActiveCam();
+  renderer.render(scene, activeCam);
+  camRenderer.render(scene, shootCam);
+  updateDimLabels(activeCam, studioDims, bdInfo);
+
+  if(state.view==='top'){
+    dragTargets=[];
+    state.cameras.forEach((cam,i)=>{
+      const s=project(topCam, new THREE.Vector3(parseFloat(cam.camX)||0,0,parseFloat(cam.camDepth)||0));
+      if(s.visible) dragTargets.push({type:'camera', index:i, x:s.x, y:s.y});
+    });
+    if(state.blockingMode){
+      state.pins.forEach((pin,i)=>{
+        const s=project(topCam, new THREE.Vector3(pin.x,0,pin.z));
+        if(s.visible) dragTargets.push({type:'pin', index:i, x:s.x, y:s.y});
+      });
+    }
+  } else {
+    dragTargets=[];
+  }
+}
+
+$('screenshotBtn').addEventListener('click', ()=>{
+  renderer.render(scene, getActiveCam());
+
+  const w=mainCanvas.width, h=mainCanvas.height;
+  const out=document.createElement('canvas');
+  out.width=w; out.height=h;
+  const ctx=out.getContext('2d');
+  ctx.drawImage(mainCanvas,0,0,w,h);
+
+  const lens=computeLens();
+  const camH=parseFloat($('camH').value);
+  const tilt=parseFloat($('tilt').value);
+  const camDepth=parseFloat($('camDepth').value);
+  const aspectLabel = Math.abs(state.aspect-16/9)<0.01?'16:9':(Math.abs(state.aspect-1.5)<0.01?'3:2':'1:1');
+  const viewLabel = {top:'上面', side:'側面', persp:'パース', shoot:'カメラ全画面'}[state.view] || state.view;
+  const totalPeople=lastRowCounts.reduce((a,b)=>a+b,0);
+
+  const lines=[
+    `スタジオ ${studioDims.w.toFixed(1)} x ${studioDims.d.toFixed(1)} x 高${studioDims.h.toFixed(1)}m`,
+    `${lens.label}　${aspectLabel}`,
+    `カメラ高さ ${camH.toFixed(2)}m　チルト ${tilt.toFixed(1)}°　奥行き位置 ${camDepth.toFixed(1)}m`,
+    `背景 幅${bdInfo.bdW.toFixed(1)}m 高さ${bdInfo.bdH.toFixed(1)}m`,
+    `人数 合計${totalPeople}人(${lastRowCounts.length}列)　表示: ${viewLabel}`
+  ];
+
+  const scale=w/1400;
+  const fontSize=Math.max(13, 15*scale);
+  ctx.font=`${fontSize}px 'SFMono-Regular',Consolas,monospace`;
+  ctx.textBaseline='top';
+  const padding=12*scale;
+  const lineHeight=fontSize*1.55;
+  const boxW=Math.max(...lines.map(l=>ctx.measureText(l).width))+padding*2;
+  const boxH=lines.length*lineHeight+padding*2;
+  const boxX=w-boxW-16*scale, boxY=16*scale;
+
+  ctx.fillStyle='rgba(20,22,26,0.68)';
+  ctx.fillRect(boxX,boxY,boxW,boxH);
+  ctx.fillStyle='#EDEEEF';
+  lines.forEach((line,i)=>{ ctx.fillText(line, boxX+padding, boxY+padding+i*lineHeight); });
+
+  const link=document.createElement('a');
+  link.download='camera-position-sim.png';
+  link.href=out.toDataURL('image/png');
+  link.click();
+});
+
+/* ---------- save / load configuration ---------- */
+const PLAIN_FIELDS=['studioW','studioD','studioH','childCount','rows',
+  'spacing','rowGap','bdGap','adultH','childH','bdW','bdH','bdDrape','bdRot','bdX','bdDepth','camDepth','camH','camX','tilt','pan','focal','engPreset','engZoom'];
+function serializeConfig(){
+  syncActiveCameraFromDOM();
+  const cfg={ version:4, view:state.view, sensorWidth:state.sensorWidth, aspect:state.aspect, camMode:state.camMode,
+    backdropColor, backdropImageDataURL, fields:{}, cameras:state.cameras, activeCam:state.activeCam,
+    blockingMode:state.blockingMode, pins:state.pins, rowCounts:state.rowCounts };
+  PLAIN_FIELDS.forEach(id=>{ cfg.fields[id]=$(id).value; });
+  return cfg;
+}
+function selectToggleByClick(selector, matchFn){
+  document.querySelectorAll(selector).forEach(b=>{ if(matchFn(b)) b.click(); });
+}
+function applyConfig(cfg){
+  if(!cfg || !cfg.fields) return;
+  PLAIN_FIELDS.forEach(id=>{ if(id in cfg.fields) $(id).value=cfg.fields[id]; });
+
+  backdropColor = cfg.backdropColor || backdropColor;
+  $('colorCustom').value = backdropColor;
+  buildSwatches();
+
+  selectToggleByClick('#tab-camera .toggle button[data-sensor]', b=> b.dataset.sensor === (cfg.sensorWidth===36?'ff':'apsc'));
+  selectToggleByClick('#tab-camera .toggle button[data-mode]', b=> b.dataset.mode === cfg.camMode);
+  selectToggleByClick('#tab-camera .toggle button[data-aspect]', b=> Math.abs(parseFloat(b.dataset.aspect)-cfg.aspect)<0.01);
+  if(cfg.view) selectToggleByClick('.view-toggle button[data-view]', b=> b.dataset.view === cfg.view);
+
+  if(cfg.backdropImageDataURL){
+    try{ loadBackdropImageFromDataURL(cfg.backdropImageDataURL); }
+    catch(err){ console.warn('backdrop image restore failed', err); }
+  } else {
+    if(backdropTexture){ backdropTexture.dispose(); backdropTexture=null; }
+    backdropImageDataURL=null;
+    $('bdImage').value='';
+  }
+
+  if(Array.isArray(cfg.cameras) && cfg.cameras.length){
+    state.cameras=cfg.cameras;
+    state.activeCam=Math.min(cfg.activeCam||0, state.cameras.length-1);
+    applyCameraFieldsToDOM(state.cameras[state.activeCam]);
+    rebuildCameraChips();
+  } else {
+    state.cameras=[getCameraFieldsFromDOM()];
+    state.activeCam=0;
+    rebuildCameraChips();
+  }
+
+  if(Array.isArray(cfg.rowCounts) && cfg.rowCounts.length){
+    state.rowCounts=cfg.rowCounts.slice();
+    $('rows').value=state.rowCounts.length;
+  }
+  buildRowCountInputs();
+
+  state.pins=Array.isArray(cfg.pins) ? cfg.pins : [];
+  state.blockingMode=!!cfg.blockingMode;
+  state.selectedPin=-1;
+  document.querySelectorAll('#tab-people .toggle button[data-peoplemode]').forEach(b=>{
+    b.classList.toggle('active', (b.dataset.peoplemode==='blocking')===state.blockingMode);
+  });
+  $('peoplePanel-photo').style.display=state.blockingMode?'none':'';
+  $('peoplePanel-blocking').style.display=state.blockingMode?'':'none';
+  rebuildPinList();
+  updatePinEditor();
+
+  onParamsChanged();
+}
+$('configSaveBtn').addEventListener('click', ()=>{
+  const cfg=serializeConfig();
+  const blob=new Blob([JSON.stringify(cfg)], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.download='camera-position-sim-config.json';
+  link.href=url;
+  link.click();
+  URL.revokeObjectURL(url);
+});
+$('configLoadBtn').addEventListener('click', ()=>{ $('configLoadInput').click(); });
+$('configLoadInput').addEventListener('change', e=>{
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    let parsed;
+    try{ parsed=JSON.parse(ev.target.result); }
+    catch(err){ alert('設定ファイルの解析に失敗しました(JSONエラー): '+err.message); return; }
+    try{ applyConfig(parsed); }
+    catch(err){ alert('設定の反映中にエラーが発生しました: '+err.message); }
+  };
+  reader.onerror=()=>{ alert('ファイルの読み込みに失敗しました: '+(reader.error ? reader.error.message : '不明なエラー')); };
+  reader.readAsText(file);
+  e.target.value='';
+});
+
+buildSwatches();
+buildLensButtons();
+buildEngPresetSelect();
+rebuildCameraChips();
+buildRowCountInputs();
+updatePerspCameraFromOrbit();
+resizeRenderers();
+onParamsChanged();
+animate();
+</script>
+</body>
+</html>
