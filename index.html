@@ -98,10 +98,10 @@
 
       <div id="peoplePanel-photo">
         <h2 class="grouplabel">人数構成</h2>
-        <div class="row-inline"><span class="lbl">総人数</span><span class="val" id="totalDisplay">10</span></div>
+        <div class="row-inline"><span class="lbl">総人数</span><input type="number" id="total" value="10" min="1" max="200"></div>
         <div class="row-inline"><span class="lbl">大人の人数</span><input type="number" id="adultCount" value="6" min="0" max="200"></div>
         <div class="row-inline"><span class="lbl">子供の人数</span><input type="number" id="childCount" value="4" min="0" max="200"></div>
-        <p class="note">総人数は各列の人数の合計です。大人・子供のどちらかを変えると、もう一方が自動調整されます。</p>
+        <p class="note">総人数・大人・子供のいずれかを変えると、各列の人数がその合計に合わせて自動的に再配分されます(比率はできるだけ保たれます)。各列の人数を直接編集することもできます。</p>
 
         <h2 class="grouplabel" style="margin-top:16px;">配列</h2>
         <div class="row-inline"><span class="lbl">列数(前後)</span><input type="number" id="rows" value="3" min="1" max="15"></div>
@@ -609,24 +609,51 @@ function getRowCounts(){
   state.rowCounts.length=rows;
   return state.rowCounts.slice();
 }
+function rescaleRowCounts(newTotal){
+  const old=state.rowCounts.slice();
+  const oldTotal=old.reduce((a,b)=>a+b,0);
+  const n=old.length;
+  if(oldTotal<=0){
+    const base=Math.floor(newTotal/n), rem=newTotal-base*n;
+    state.rowCounts=old.map((_,i)=>base+(i<rem?1:0));
+    return;
+  }
+  const scaled=old.map(v=>v*newTotal/oldTotal);
+  const floors=scaled.map(v=>Math.floor(v));
+  let used=floors.reduce((a,b)=>a+b,0);
+  let remainder=newTotal-used;
+  const fracIdx=scaled.map((v,i)=>({i,frac:v-floors[i]})).sort((a,b)=>b.frac-a.frac);
+  const result=floors.slice();
+  for(let k=0;k<remainder && fracIdx.length>0;k++) result[fracIdx[k%fracIdx.length].i]++;
+  state.rowCounts=result;
+}
 function updatePeopleTotals(source){
-  const rowCounts=getRowCounts();
-  const total=rowCounts.reduce((a,b)=>a+b,0);
-  let adult, child;
-  if(source==='adult'){
-    adult=Math.max(0, Math.min(total, parseInt($('adultCount').value)||0));
-    child=total-adult;
+  let rowCounts=getRowCounts();
+  let total=rowCounts.reduce((a,b)=>a+b,0);
+  let child, adult;
+
+  if(source==='total'){
+    const t=Math.max(1, parseInt($('total').value)||1);
+    if(t!==total){ rescaleRowCounts(t); rowCounts=getRowCounts(); total=t; buildRowCountInputs(); }
+    child=Math.max(0, Math.min(total, parseInt($('childCount').value)||0));
+    adult=total-child;
+  } else if(source==='adult' || source==='child'){
+    adult=Math.max(0, parseInt($('adultCount').value)||0);
+    child=Math.max(0, parseInt($('childCount').value)||0);
+    const t=Math.max(1, adult+child);
+    if(t!==total){ rescaleRowCounts(t); rowCounts=getRowCounts(); total=t; buildRowCountInputs(); }
   } else {
     child=Math.max(0, Math.min(total, parseInt($('childCount').value)||0));
     adult=total-child;
   }
+  $('total').value=total;
   $('childCount').value=child;
   $('adultCount').value=adult;
-  $('totalDisplay').textContent=total;
   return {total, child, adult, rowCounts};
 }
 $('childCount').addEventListener('input', ()=>{ updatePeopleTotals('child'); onParamsChanged(); });
 $('adultCount').addEventListener('input', ()=>{ updatePeopleTotals('adult'); onParamsChanged(); });
+$('total').addEventListener('input', ()=>{ updatePeopleTotals('total'); onParamsChanged(); });
 
 /* ---------- people mode: photo vs blocking ---------- */
 document.querySelectorAll('#tab-people .toggle button[data-peoplemode]').forEach(b=>{
