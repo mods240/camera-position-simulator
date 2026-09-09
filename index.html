@@ -75,7 +75,7 @@
       <button data-tab="people" class="active">配置</button>
       <button data-tab="studio">スタジオ</button>
       <button data-tab="camera">カメラ</button>
-      <button data-tab="backdrop">背景布</button>
+      <button data-tab="backdrop">背景</button>
     </div>
 
     <div class="tabpanel" id="tab-studio">
@@ -87,6 +87,34 @@
       <label>高さ <span class="val" id="studioHVal">5.5 m</span></label>
       <input type="range" id="studioH" min="2.5" max="10" step="0.1" value="5.5">
       <p class="note">壁・床のワイヤーフレームはスタジオの広さの目安です。</p>
+
+      <h2 class="grouplabel" style="margin-top:18px;">会場図面</h2>
+      <input type="file" id="floorplanImage" accept="image/*" style="width:100%;font-size:11.5px;color:var(--muted);margin-bottom:10px;">
+      <div id="floorplanCalibrateArea" style="display:none;">
+        <p class="note">図面内で、実際の距離がわかる2点を順にクリックしてください(壁の端など)。</p>
+        <div style="position:relative;display:inline-block;max-width:100%;margin-bottom:10px;">
+          <img id="floorplanPreviewImg" style="max-width:100%;display:block;border-radius:6px;">
+          <canvas id="floorplanClickOverlay" style="position:absolute;top:0;left:0;cursor:crosshair;"></canvas>
+        </div>
+        <div class="row-inline"><span class="lbl">その2点の実際の距離</span><input type="number" id="floorplanKnownDist" value="1" min="0.01" step="0.01" style="width:70px;"></div>
+        <p class="note" id="floorplanCalibResult" style="margin-top:-6px;">2点をクリックしてください。</p>
+        <button id="floorplanApplyScaleBtn" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;margin-bottom:10px;">このスケールで図面を配置</button>
+      </div>
+      <div id="floorplanControls" style="display:none;">
+        <div class="row-inline"><span class="lbl">図面サイズ</span><span class="val" id="floorplanSizeDisplay">—</span></div>
+        <div class="toggle" style="margin-bottom:10px;">
+          <button id="floorplanShowBtn" class="active">表示</button>
+          <button id="floorplanHideBtn">非表示</button>
+        </div>
+        <label>不透明度 <span class="val" id="floorplanOpacityVal">50%</span></label>
+        <input type="range" id="floorplanOpacity" min="0" max="100" value="50">
+        <label>左右位置 <span class="val" id="floorplanXVal">0.0 m</span></label>
+        <input type="range" id="floorplanX" min="-15" max="15" step="0.1" value="0">
+        <label>奥行き位置 <span class="val" id="floorplanZVal">0.0 m</span></label>
+        <input type="range" id="floorplanZ" min="0" max="30" step="0.1" value="0">
+        <button id="floorplanApplyStudioBtn" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--amber);background:var(--amber-dim);color:var(--amber);cursor:pointer;font-size:12px;margin:10px 0;">この図面サイズをスタジオ寸法に反映</button>
+        <button id="floorplanClearBtn" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">図面を削除</button>
+      </div>
     </div>
 
     <div class="tabpanel active" id="tab-people">
@@ -175,13 +203,29 @@
       </div>
       <div class="swatches" id="colorSwatches"></div>
       <input type="color" id="colorCustom" value="#2e8b57" style="width:100%;height:28px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;margin-bottom:14px;">
+      <h2 class="grouplabel">タイプ</h2>
+      <div class="toggle">
+        <button data-bdtype="cloth" class="active">布・ペーパー</button>
+        <button data-bdtype="led">LEDパネル</button>
+      </div>
       <label>幅 <span class="val" id="bdWVal">4.4 m</span></label>
       <input type="range" id="bdW" min="1" max="14" step="0.1" value="4.4">
       <label>高さ <span class="val" id="bdHVal">2.5 m</span></label>
       <input type="range" id="bdH" min="1" max="6" step="0.1" value="2.5">
-      <label>床に垂らす <span class="val" id="bdDrapeVal">1.7 m</span></label>
-      <input type="range" id="bdDrape" min="0" max="5" step="0.1" value="1.7">
-      <p class="note">「床に垂らす」を0にすると背景だけの布になります。</p>
+      <div id="clothOnlyControls">
+        <label>床に垂らす <span class="val" id="bdDrapeVal">1.7 m</span></label>
+        <input type="range" id="bdDrape" min="0" max="5" step="0.1" value="1.7">
+        <p class="note">「床に垂らす」を0にすると背景だけの布になります。</p>
+      </div>
+      <div id="ledOnlyControls" style="display:none;">
+        <label>パネルモジュールサイズ <span class="val" id="ledModuleVal">0.5 m</span></label>
+        <input type="range" id="ledModule" min="0.3" max="1.0" step="0.05" value="0.5">
+        <p class="note" id="ledCalcResult">—</p>
+        <h2 class="grouplabel" style="margin-top:14px;">動画素材</h2>
+        <input type="file" id="bdVideo" accept="video/*" style="width:100%;font-size:11.5px;color:var(--muted);margin-bottom:8px;">
+        <button id="bdVideoClear" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">動画を消す</button>
+        <p class="note">動画はこのパネルに貼り付けて見え方を確認できます。保存/読込のファイルには動画データは含まれません(色・静止画のみ保存)。</p>
+      </div>
       <label>向き <span class="val" id="bdRotVal">0°</span></label>
       <input type="range" id="bdRot" min="-45" max="45" step="1" value="0">
       <label>左右位置 <span class="val" id="bdXVal">0.0 m</span></label>
@@ -259,6 +303,10 @@
       <div class="legend">
         <span><span class="sw" style="background:#D9B98A;"></span>大人</span>
         <span><span class="sw" style="background:#E8A33D;"></span>子供</span>
+        <button id="videoPlayBtn" title="全パネルの動画を同時に再生" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">▶ 動画再生</button>
+        <button id="videoPauseBtn" title="全パネルの動画を一時停止" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">⏸ 停止</button>
+        <button id="videoResetBtn" title="全パネルの動画を先頭に戻す" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">⏮ 先頭</button>
+        <button id="videoRecordBtn" title="先頭から再生しながら画面を録画" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">🔴 録画+再生</button>
         <button id="screenshotBtn" title="スクリーンショットを保存" style="margin-left:10px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📷 保存</button>
         <button id="configSaveBtn" title="設定を保存" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">💾 設定保存</button>
         <button id="configLoadBtn" title="設定を読み込む" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📂 設定読込</button>
@@ -291,8 +339,10 @@ const state={
   blockingMode:false, pins:[], selectedPin:-1,
   rowCounts:[2,3,5],
   scenes:[], activeScene:-1,
-  backdrops:[{ id:1, name:'背景1', color:'#2e8b57', imageDataURL:null, bdW:4.4, bdH:2.5, bdDrape:1.7, bdRot:0, bdX:0, bdDepth:14.5 }],
-  activeBackdrop:0
+  backdrops:[{ id:1, name:'背景1', color:'#2e8b57', imageDataURL:null, bdW:4.4, bdH:2.5, bdDrape:1.7, bdRot:0, bdX:0, bdDepth:14.5, type:'cloth', ledModule:0.5 }],
+  activeBackdrop:0,
+  backdropType:'cloth',
+  floorplan:null
 };
 
 /* ---------- tabs ---------- */
@@ -375,6 +425,79 @@ $('bdImageClear').addEventListener('click', ()=>{
   onParamsChanged();
 });
 
+/* ---------- LED video material + synchronized playback ---------- */
+let backdropVideos={}; // id -> HTMLVideoElement
+$('bdVideo').addEventListener('change', e=>{
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+  const bd=state.backdrops[state.activeBackdrop]; if(!bd) return;
+  const url=URL.createObjectURL(file);
+  const video=document.createElement('video');
+  video.src=url; video.loop=true; video.muted=true; video.playsInline=true;
+  video.addEventListener('loadeddata', ()=>{
+    if(backdropVideos[bd.id]){ backdropVideos[bd.id].pause(); URL.revokeObjectURL(backdropVideos[bd.id].src); }
+    if(backdropTextures[bd.id]) backdropTextures[bd.id].dispose();
+    backdropVideos[bd.id]=video;
+    const tex=new THREE.Texture(video);
+    tex.encoding=THREE.sRGBEncoding;
+    backdropTextures[bd.id]=tex;
+    bd.imageDataURL=null;
+    onParamsChanged();
+  });
+});
+$('bdVideoClear').addEventListener('click', ()=>{
+  const bd=state.backdrops[state.activeBackdrop]; if(!bd) return;
+  if(backdropVideos[bd.id]){ backdropVideos[bd.id].pause(); URL.revokeObjectURL(backdropVideos[bd.id].src); delete backdropVideos[bd.id]; }
+  if(backdropTextures[bd.id]){ backdropTextures[bd.id].dispose(); delete backdropTextures[bd.id]; }
+  $('bdVideo').value='';
+  onParamsChanged();
+});
+$('videoPlayBtn').addEventListener('click', ()=>{ Object.values(backdropVideos).forEach(v=>v.play()); });
+$('videoPauseBtn').addEventListener('click', ()=>{ Object.values(backdropVideos).forEach(v=>v.pause()); });
+$('videoResetBtn').addEventListener('click', ()=>{ Object.values(backdropVideos).forEach(v=>{ v.currentTime=0; }); });
+
+let mediaRecorder=null, recordedChunks=[];
+$('videoRecordBtn').addEventListener('click', ()=>{
+  if(mediaRecorder && mediaRecorder.state==='recording'){
+    mediaRecorder.stop();
+    return;
+  }
+  if(!mainCanvas.captureStream){
+    alert('このブラウザは画面録画(captureStream)に対応していません。');
+    return;
+  }
+  Object.values(backdropVideos).forEach(v=>{ v.currentTime=0; });
+  Object.values(backdropVideos).forEach(v=>v.play());
+
+  const stream=mainCanvas.captureStream(30);
+  recordedChunks=[];
+  let mimeType='video/webm;codecs=vp9';
+  if(!(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mimeType))) mimeType='video/webm';
+  try{
+    mediaRecorder=new MediaRecorder(stream, {mimeType});
+  }catch(err){
+    alert('このブラウザでは画面録画に対応していません。');
+    return;
+  }
+  mediaRecorder.ondataavailable=e=>{ if(e.data && e.data.size>0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop=()=>{
+    const blob=new Blob(recordedChunks, {type:'video/webm'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.download='camera-position-sim-recording.webm';
+    link.href=url;
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    $('videoRecordBtn').textContent='🔴 録画+再生';
+    $('videoRecordBtn').style.borderColor='var(--line)';
+    $('videoRecordBtn').style.color='var(--muted)';
+  };
+  mediaRecorder.start();
+  $('videoRecordBtn').textContent='⏹ 録画停止';
+  $('videoRecordBtn').style.borderColor='var(--red)';
+  $('videoRecordBtn').style.color='var(--red)';
+});
+
 function getBackdropFieldsFromDOM(){
   const existing=state.backdrops[state.activeBackdrop];
   return {
@@ -383,7 +506,8 @@ function getBackdropFieldsFromDOM(){
     color: existing?existing.color:swatchColors[0],
     imageDataURL: existing?existing.imageDataURL:null,
     bdW:parseFloat($('bdW').value), bdH:parseFloat($('bdH').value), bdDrape:parseFloat($('bdDrape').value),
-    bdRot:parseFloat($('bdRot').value), bdX:parseFloat($('bdX').value), bdDepth:parseFloat($('bdDepth').value)
+    bdRot:parseFloat($('bdRot').value), bdX:parseFloat($('bdX').value), bdDepth:parseFloat($('bdDepth').value),
+    type: state.backdropType, ledModule:parseFloat($('ledModule').value)
   };
 }
 function applyBackdropFieldsToDOM(bd){
@@ -392,6 +516,13 @@ function applyBackdropFieldsToDOM(bd){
   $('colorCustom').value=bd.color;
   buildSwatches();
   if(!bd.imageDataURL) $('bdImage').value='';
+  state.backdropType=bd.type||'cloth';
+  $('ledModule').value=bd.ledModule||0.5;
+  document.querySelectorAll('#tab-backdrop .toggle button[data-bdtype]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.bdtype===state.backdropType);
+  });
+  $('clothOnlyControls').style.display = state.backdropType==='led' ? 'none' : '';
+  $('ledOnlyControls').style.display = state.backdropType==='led' ? '' : 'none';
 }
 function syncActiveBackdropFromDOM(){
   if(!state.backdrops[state.activeBackdrop]) return;
@@ -429,6 +560,7 @@ function deleteBackdrop(){
   if(state.backdrops.length<=1) return;
   const removed=state.backdrops[state.activeBackdrop];
   if(backdropTextures[removed.id]){ backdropTextures[removed.id].dispose(); delete backdropTextures[removed.id]; }
+  if(backdropVideos[removed.id]){ backdropVideos[removed.id].pause(); URL.revokeObjectURL(backdropVideos[removed.id].src); delete backdropVideos[removed.id]; }
   state.backdrops.splice(state.activeBackdrop,1);
   state.activeBackdrop=Math.max(0, state.activeBackdrop-1);
   applyBackdropFieldsToDOM(state.backdrops[state.activeBackdrop]);
@@ -436,7 +568,162 @@ function deleteBackdrop(){
   onParamsChanged();
 }
 $('backdropAddBtn').addEventListener('click', addBackdrop);
+document.querySelectorAll('#tab-backdrop .toggle button[data-bdtype]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tab-backdrop .toggle button[data-bdtype]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.backdropType=b.dataset.bdtype;
+    $('clothOnlyControls').style.display = state.backdropType==='led' ? 'none' : '';
+    $('ledOnlyControls').style.display = state.backdropType==='led' ? '' : 'none';
+    onParamsChanged();
+  };
+});
+$('ledModule').addEventListener('input', onParamsChanged);
+function updateLedCalc(){
+  const bdW=parseFloat($('bdW').value), bdH=parseFloat($('bdH').value);
+  const module=parseFloat($('ledModule').value);
+  $('ledModuleVal').textContent=module.toFixed(2)+' m';
+  const cols=Math.max(1,Math.ceil(bdW/module)), rows=Math.max(1,Math.ceil(bdH/module));
+  const actualW=cols*module, actualH=rows*module;
+  const diagM=Math.sqrt(actualW*actualW+actualH*actualH);
+  const diagInch=diagM/0.0254;
+  $('ledCalcResult').textContent=`パネル構成: 横${cols}枚×縦${rows}枚(実寸 幅${actualW.toFixed(1)}m×高さ${actualH.toFixed(1)}m)/ 対角約${diagInch.toFixed(0)}インチ相当`;
+}
 $('backdropDeleteBtn').addEventListener('click', deleteBackdrop);
+
+/* ---------- floor plan (venue drawing) import + calibration ---------- */
+let floorplanTexture=null;
+let floorplanCalibPoints=[];
+$('floorplanImage').addEventListener('change', e=>{
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    resizeImageDataURL(ev.target.result, 1600).then(dataURL=>{
+      floorplanCalibPoints=[];
+      $('floorplanCalibResult').textContent='2点をクリックしてください。';
+      $('floorplanPreviewImg').onload=()=>{
+        const img=$('floorplanPreviewImg');
+        const canvas=$('floorplanClickOverlay');
+        canvas.width=img.clientWidth; canvas.height=img.clientHeight;
+        canvas.style.width=img.clientWidth+'px'; canvas.style.height=img.clientHeight+'px';
+        drawCalibOverlay();
+      };
+      $('floorplanPreviewImg').src=dataURL;
+      $('floorplanPreviewImg').dataset.dataurl=dataURL;
+      $('floorplanCalibrateArea').style.display='';
+    });
+  };
+  reader.readAsDataURL(file);
+});
+function drawCalibOverlay(){
+  const canvas=$('floorplanClickOverlay');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#E8A33D';
+  floorplanCalibPoints.forEach(p=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fill();
+  });
+  if(floorplanCalibPoints.length===2){
+    ctx.strokeStyle='#E8A33D'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(floorplanCalibPoints[0].x, floorplanCalibPoints[0].y);
+    ctx.lineTo(floorplanCalibPoints[1].x, floorplanCalibPoints[1].y);
+    ctx.stroke();
+  }
+}
+$('floorplanClickOverlay').addEventListener('click', e=>{
+  const rect=e.target.getBoundingClientRect();
+  const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  if(floorplanCalibPoints.length>=2) floorplanCalibPoints=[];
+  floorplanCalibPoints.push({x,y});
+  drawCalibOverlay();
+  if(floorplanCalibPoints.length===2){
+    const dx=floorplanCalibPoints[1].x-floorplanCalibPoints[0].x;
+    const dy=floorplanCalibPoints[1].y-floorplanCalibPoints[0].y;
+    const pixelDist=Math.sqrt(dx*dx+dy*dy);
+    $('floorplanCalibResult').textContent=`2点間: ${pixelDist.toFixed(0)}px。右の距離を入力して反映してください。`;
+  } else {
+    $('floorplanCalibResult').textContent='もう1点クリックしてください。';
+  }
+});
+$('floorplanApplyScaleBtn').addEventListener('click', ()=>{
+  if(floorplanCalibPoints.length!==2){ alert('先に図面上で2点クリックしてください。'); return; }
+  const dx=floorplanCalibPoints[1].x-floorplanCalibPoints[0].x;
+  const dy=floorplanCalibPoints[1].y-floorplanCalibPoints[0].y;
+  const pixelDist=Math.sqrt(dx*dx+dy*dy);
+  if(pixelDist<2){ alert('2点が近すぎます。もう一度クリックしてください。'); return; }
+  const knownDist=Math.max(0.01, parseFloat($('floorplanKnownDist').value)||1);
+  const img=$('floorplanPreviewImg');
+  const metersPerPx=knownDist/pixelDist;
+  const widthM=img.clientWidth*metersPerPx;
+  const heightM=img.clientHeight*metersPerPx;
+  const dataURL=img.dataset.dataurl;
+
+  if(floorplanTexture){ floorplanTexture.dispose(); floorplanTexture=null; }
+  const loadImg=new Image();
+  loadImg.onload=()=>{
+    floorplanTexture=new THREE.Texture(loadImg);
+    floorplanTexture.needsUpdate=true;
+    floorplanTexture.encoding=THREE.sRGBEncoding;
+    onParamsChanged();
+  };
+  loadImg.src=dataURL;
+
+  state.floorplan={ dataURL, widthM, heightM, x:0, z:heightM/2, opacity:0.5, visible:true };
+  $('floorplanSizeDisplay').textContent=`幅${widthM.toFixed(1)}m × 奥行${heightM.toFixed(1)}m`;
+  $('floorplanX').value=0; $('floorplanXVal').textContent='0.0 m';
+  $('floorplanZ').value=(heightM/2).toFixed(1); $('floorplanZVal').textContent=(heightM/2).toFixed(1)+' m';
+  $('floorplanOpacity').value=50; $('floorplanOpacityVal').textContent='50%';
+  $('floorplanControls').style.display='';
+  onParamsChanged();
+});
+$('floorplanShowBtn').addEventListener('click', ()=>{
+  if(!state.floorplan) return;
+  state.floorplan.visible=true;
+  $('floorplanShowBtn').classList.add('active'); $('floorplanHideBtn').classList.remove('active');
+  onParamsChanged();
+});
+$('floorplanHideBtn').addEventListener('click', ()=>{
+  if(!state.floorplan) return;
+  state.floorplan.visible=false;
+  $('floorplanHideBtn').classList.add('active'); $('floorplanShowBtn').classList.remove('active');
+  onParamsChanged();
+});
+$('floorplanOpacity').addEventListener('input', ()=>{
+  if(!state.floorplan) return;
+  state.floorplan.opacity=parseFloat($('floorplanOpacity').value)/100;
+  $('floorplanOpacityVal').textContent=$('floorplanOpacity').value+'%';
+  onParamsChanged();
+});
+$('floorplanX').addEventListener('input', ()=>{
+  if(!state.floorplan) return;
+  state.floorplan.x=parseFloat($('floorplanX').value);
+  $('floorplanXVal').textContent=state.floorplan.x.toFixed(1)+' m';
+  onParamsChanged();
+});
+$('floorplanZ').addEventListener('input', ()=>{
+  if(!state.floorplan) return;
+  state.floorplan.z=parseFloat($('floorplanZ').value);
+  $('floorplanZVal').textContent=state.floorplan.z.toFixed(1)+' m';
+  onParamsChanged();
+});
+$('floorplanApplyStudioBtn').addEventListener('click', ()=>{
+  if(!state.floorplan) return;
+  $('studioW').value=Math.max(4, Math.round(state.floorplan.widthM*2)/2);
+  $('studioD').value=Math.max(4, Math.round(state.floorplan.heightM*2)/2);
+  onParamsChanged();
+});
+$('floorplanClearBtn').addEventListener('click', ()=>{
+  state.floorplan=null;
+  if(floorplanTexture){ floorplanTexture.dispose(); floorplanTexture=null; }
+  floorplanCalibPoints=[];
+  $('floorplanImage').value='';
+  $('floorplanCalibrateArea').style.display='none';
+  $('floorplanControls').style.display='none';
+  onParamsChanged();
+});
+
 $('bdDepthAuto').addEventListener('click', ()=>{
   const studioD=parseFloat($('studioD').value);
   $('bdDepth').value=Math.max(0.5, studioD-0.5).toFixed(1);
@@ -588,7 +875,7 @@ document.querySelectorAll('.view-toggle button').forEach(b=>{
 let rowCountInputEls=[];
 function buildRowCountInputs(){
   const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
-  while(state.rowCounts.length<rows) state.rowCounts.push(3);
+  while(state.rowCounts.length<rows) state.rowCounts.push(0);
   state.rowCounts.length=rows;
   const box=$('rowCountInputs'); box.innerHTML='';
   rowCountInputEls=[];
@@ -641,10 +928,26 @@ function adjustRowCount(i, newVal){
   otherIdx.forEach((idx,k)=>{ rows[idx]=newOthers[k]; });
   rows[i]=newVal;
 }
-$('rows').addEventListener('input', ()=>{ buildRowCountInputs(); onParamsChanged(); });
+$('rows').addEventListener('input', ()=>{
+  const newRows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
+  resizeRowCounts(newRows);
+  buildRowCountInputs();
+  onParamsChanged();
+});
+function resizeRowCounts(newRows){
+  const cur=state.rowCounts;
+  if(newRows===cur.length) return;
+  const oldTotal=cur.reduce((a,b)=>a+b,0);
+  if(newRows>cur.length){
+    while(cur.length<newRows) cur.push(0);
+  } else {
+    cur.length=newRows;
+    if(cur.reduce((a,b)=>a+b,0)!==oldTotal) rescaleRowCounts(oldTotal);
+  }
+}
 function getRowCounts(){
   const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
-  while(state.rowCounts.length<rows) state.rowCounts.push(3);
+  while(state.rowCounts.length<rows) state.rowCounts.push(0);
   state.rowCounts.length=rows;
   return state.rowCounts.slice();
 }
@@ -924,10 +1227,25 @@ function rebuildStudio(){
   boxLines.position.set(0,h/2,d/2);
   studioGroup.add(boxLines);
   boxGeo.dispose();
+  if(state.floorplan && state.floorplan.visible && floorplanTexture){
+    const fp=state.floorplan;
+    const planeMat=new THREE.MeshBasicMaterial({ map:floorplanTexture, transparent:true, opacity:fp.opacity, depthWrite:false });
+    const plane=new THREE.Mesh(new THREE.PlaneGeometry(fp.widthM, fp.heightM), planeMat);
+    plane.rotation.x=-Math.PI/2;
+    plane.position.set(fp.x, 0.008, fp.z);
+    studioGroup.add(plane);
+  }
   return {w,d,h};
 }
 
 /* ---------- backdrop + people ---------- */
+function effectiveBdSize(bd){
+  if(bd.type==='led'){
+    const m=bd.ledModule||0.5;
+    return { w:Math.max(m,Math.ceil(bd.bdW/m)*m), h:Math.max(m,Math.ceil(bd.bdH/m)*m) };
+  }
+  return { w:bd.bdW, h:bd.bdH };
+}
 function makePerson(x,z,height,isChild,colorOverride){
   const group=new THREE.Group();
   const headR=height*0.13;
@@ -998,14 +1316,15 @@ function rebuildScene(){
     const bdMat=new THREE.MeshStandardMaterial({
       color: tex ? 0xffffff : new THREE.Color(bd.color),
       map: tex,
-      roughness:0.9, side:THREE.DoubleSide
+      roughness: bd.type==='led' ? 0.4 : 0.9, side:THREE.DoubleSide
     });
-    const panel=new THREE.Mesh(new THREE.PlaneGeometry(bd.bdW,bd.bdH), bdMat);
+    const {w:panelW, h:panelH}=effectiveBdSize(bd);
+    const panel=new THREE.Mesh(new THREE.PlaneGeometry(panelW,panelH), bdMat);
     panel.rotation.y=Math.PI;
-    panel.position.set(0,bd.bdH/2,0);
+    panel.position.set(0,panelH/2,0);
     bdGroup.add(panel);
-    if(bd.bdDrape>0.01){
-      const floorPiece=new THREE.Mesh(new THREE.PlaneGeometry(bd.bdW,bd.bdDrape), bdMat);
+    if(bd.type!=='led' && bd.bdDrape>0.01){
+      const floorPiece=new THREE.Mesh(new THREE.PlaneGeometry(panelW,bd.bdDrape), bdMat);
       floorPiece.rotation.x=-Math.PI/2;
       floorPiece.position.set(0,0.005,-bd.bdDrape/2);
       bdGroup.add(floorPiece);
@@ -1015,7 +1334,9 @@ function rebuildScene(){
     dynamicGroup.add(bdGroup);
   });
   const activeBd=state.backdrops[state.activeBackdrop];
-  const bdW=activeBd.bdW, bdH=activeBd.bdH, offX=activeBd.bdX;
+  const activeBdSize=effectiveBdSize(activeBd);
+  const bdW=activeBdSize.w, bdH=activeBdSize.h, offX=activeBd.bdX;
+
 
   state.cameras.forEach((cam,i)=>{
     const isActive=i===state.activeCam;
@@ -1143,7 +1464,8 @@ function updateDimLabels(activeCam, studioDims, bdInfo){
     {p:new THREE.Vector3(-studioDims.w/2,0.02,studioDims.d/2), text:`奥行 ${studioDims.d.toFixed(1)} m`}
   ];
   state.backdrops.forEach(bd=>{
-    pts.push({p:new THREE.Vector3(bd.bdX, bd.bdH+0.3, bd.bdDepth), text:`${bd.name} ${bd.bdW.toFixed(1)}m`});
+    const sz=effectiveBdSize(bd);
+    pts.push({p:new THREE.Vector3(bd.bdX, sz.h+0.3, bd.bdDepth), text:`${bd.name} ${sz.w.toFixed(1)}m${bd.type==='led'?' (LED)':''}`});
   });
   state.cameras.forEach(cam=>{
     pts.push({p:new THREE.Vector3(parseFloat(cam.camX)||0, (parseFloat(cam.camH)||0)+0.3, parseFloat(cam.camDepth)||0), text:cam.name});
@@ -1304,6 +1626,7 @@ function onParamsChanged(){
   $('childHVal').textContent=parseFloat($('childH').value).toFixed(2)+' m';
   $('bdWVal').textContent=parseFloat($('bdW').value).toFixed(1)+' m';
   $('bdHVal').textContent=parseFloat($('bdH').value).toFixed(1)+' m';
+  updateLedCalc();
   $('bdDrapeVal').textContent=parseFloat($('bdDrape').value).toFixed(1)+' m';
   $('bdRotVal').textContent=parseFloat($('bdRot').value).toFixed(0)+'°';
   $('bdXVal').textContent=parseFloat($('bdX').value).toFixed(1)+' m';
@@ -1359,6 +1682,12 @@ function getActiveCam(){
 }
 function animate(){
   requestAnimationFrame(animate);
+  Object.keys(backdropVideos).forEach(id=>{
+    const v=backdropVideos[id];
+    if(v.readyState>=v.HAVE_CURRENT_DATA && backdropTextures[id]){
+      backdropTextures[id].needsUpdate=true;
+    }
+  });
   const activeCam=getActiveCam();
   renderer.render(scene, activeCam);
   camRenderer.render(scene, shootCam);
@@ -1514,11 +1843,11 @@ function serializeConfig(){
   syncActiveCameraFromDOM();
   syncActiveBackdropFromDOM();
   syncActiveSceneFromState();
-  const cfg={ version:6, view:state.view, sensorWidth:state.sensorWidth, aspect:state.aspect, camMode:state.camMode,
+  const cfg={ version:7, view:state.view, sensorWidth:state.sensorWidth, aspect:state.aspect, camMode:state.camMode,
     fields:{}, cameras:state.cameras, activeCam:state.activeCam,
     backdrops:state.backdrops, activeBackdrop:state.activeBackdrop,
     blockingMode:state.blockingMode, pins:state.pins, rowCounts:state.rowCounts,
-    scenes:state.scenes, activeScene:state.activeScene };
+    scenes:state.scenes, activeScene:state.activeScene, floorplan:state.floorplan };
   PLAIN_FIELDS.forEach(id=>{ cfg.fields[id]=$(id).value; });
   return cfg;
 }
@@ -1549,6 +1878,30 @@ function applyConfig(cfg){
   state.backdrops.forEach(bd=>{ if(bd.imageDataURL) loadBackdropImageFromDataURL(bd.imageDataURL, bd.id); });
   applyBackdropFieldsToDOM(state.backdrops[state.activeBackdrop]);
   rebuildBackdropChips();
+
+  if(floorplanTexture){ floorplanTexture.dispose(); floorplanTexture=null; }
+  if(cfg.floorplan){
+    state.floorplan=cfg.floorplan;
+    const loadImg=new Image();
+    loadImg.onload=()=>{
+      floorplanTexture=new THREE.Texture(loadImg);
+      floorplanTexture.needsUpdate=true;
+      floorplanTexture.encoding=THREE.sRGBEncoding;
+      onParamsChanged();
+    };
+    loadImg.src=state.floorplan.dataURL;
+    $('floorplanSizeDisplay').textContent=`幅${state.floorplan.widthM.toFixed(1)}m × 奥行${state.floorplan.heightM.toFixed(1)}m`;
+    $('floorplanX').value=state.floorplan.x; $('floorplanXVal').textContent=state.floorplan.x.toFixed(1)+' m';
+    $('floorplanZ').value=state.floorplan.z; $('floorplanZVal').textContent=state.floorplan.z.toFixed(1)+' m';
+    $('floorplanOpacity').value=Math.round(state.floorplan.opacity*100); $('floorplanOpacityVal').textContent=Math.round(state.floorplan.opacity*100)+'%';
+    $('floorplanShowBtn').classList.toggle('active', state.floorplan.visible);
+    $('floorplanHideBtn').classList.toggle('active', !state.floorplan.visible);
+    $('floorplanControls').style.display='';
+  } else {
+    state.floorplan=null;
+    $('floorplanControls').style.display='none';
+    $('floorplanCalibrateArea').style.display='none';
+  }
 
   if(Array.isArray(cfg.cameras) && cfg.cameras.length){
     state.cameras=cfg.cameras;
