@@ -288,6 +288,7 @@
         <button data-aspect="1.7778" class="active">16:9</button>
         <button data-aspect="1.5">3:2</button>
         <button data-aspect="1">1:1</button>
+        <button data-aspect="0.5625">9:16</button>
       </div>
     </div>
   </div>
@@ -1415,7 +1416,7 @@ function updateCamerasAndHUD(studioDims, bdInfo){
   sideCam.lookAt(0, studioDims.h/2, centerZ);
   sideCam.updateProjectionMatrix();
 
-  const aspectLabel = Math.abs(state.aspect-16/9)<0.01?'16:9':(Math.abs(state.aspect-1.5)<0.01?'3:2':'1:1');
+  const aspectLabel = Math.abs(state.aspect-16/9)<0.01?'16:9':(Math.abs(state.aspect-1.5)<0.01?'3:2':(Math.abs(state.aspect-9/16)<0.01?'9:16':'1:1'));
   const activeName=state.cameras[state.activeCam] ? state.cameras[state.activeCam].name : '';
   $('camLabel').textContent=`${activeName} ${lens.label} ${aspectLabel}`;
   $('overlayInfo').innerHTML=
@@ -1727,7 +1728,7 @@ $('screenshotBtn').addEventListener('click', ()=>{
   const camH=parseFloat($('camH').value);
   const tilt=parseFloat($('tilt').value);
   const camDepth=parseFloat($('camDepth').value);
-  const aspectLabel = Math.abs(state.aspect-16/9)<0.01?'16:9':(Math.abs(state.aspect-1.5)<0.01?'3:2':'1:1');
+  const aspectLabel = Math.abs(state.aspect-16/9)<0.01?'16:9':(Math.abs(state.aspect-1.5)<0.01?'3:2':(Math.abs(state.aspect-9/16)<0.01?'9:16':'1:1'));
   const viewLabel = {top:'上面', side:'側面', persp:'パース', shoot:'カメラ全画面'}[state.view] || state.view;
   const totalPeople=lastRowCounts.reduce((a,b)=>a+b,0);
 
