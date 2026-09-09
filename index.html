@@ -50,6 +50,7 @@
 
   .stage{position:relative;background:#0E1013;border:1px solid var(--line);border-radius:8px;flex:1;min-height:480px;overflow:hidden;}
   .stage canvas{display:block;width:100%;height:100%;}
+  #mainCanvas{position:absolute;top:0;left:0;background:#0E1013;}
   .overlay-info{position:absolute;top:10px;right:12px;font-family:var(--mono);font-size:11px;color:#B9C0C8;background:rgba(20,22,26,0.55);padding:8px 10px;border-radius:6px;line-height:1.6;text-align:right;pointer-events:none;}
   .cam-preview{position:absolute;bottom:12px;right:12px;width:220px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#0E1013;box-shadow:0 6px 18px rgba(0,0,0,0.4);}
   .cam-preview .cam-label{position:absolute;top:0;left:0;font-family:var(--mono);font-size:10px;background:rgba(20,22,26,0.7);padding:3px 6px;color:var(--amber);}
@@ -869,6 +870,7 @@ document.querySelectorAll('.view-toggle button').forEach(b=>{
     b.classList.add('active');
     state.view=b.dataset.view;
     $('dragHint').style.display = state.view==='persp' ? 'block':'none';
+    resizeRenderers();
   };
 });
 
@@ -1454,9 +1456,10 @@ function updateCamerasAndHUD(studioDims, bdInfo){
 }
 
 /* ---------- dimension labels ---------- */
+let canvasBounds={x:0,y:0,w:0,h:0};
 function project(camera, vec3){
   const p=vec3.clone().project(camera);
-  return { x:(p.x*0.5+0.5)*stageEl.clientWidth, y:(-p.y*0.5+0.5)*stageEl.clientHeight, visible:p.z<1 };
+  return { x:canvasBounds.x+(p.x*0.5+0.5)*canvasBounds.w, y:canvasBounds.y+(-p.y*0.5+0.5)*canvasBounds.h, visible:p.z<1 };
 }
 function updateDimLabels(activeCam, studioDims, bdInfo){
   const box=$('dimLabels'); box.innerHTML='';
@@ -1605,8 +1608,27 @@ mainCanvas.addEventListener('wheel', e=>{
 
 /* ---------- resize ---------- */
 function resizeRenderers(){
-  const w=stageEl.clientWidth, h=stageEl.clientHeight;
-  renderer.setSize(w,h,false);
+  const stageW=stageEl.clientWidth, stageH=stageEl.clientHeight;
+  if(state.view==='shoot'){
+    const targetAspect=state.aspect;
+    let w=stageW, h=stageW/targetAspect;
+    if(h>stageH){ h=stageH; w=stageH*targetAspect; }
+    w=Math.max(2,Math.round(w)); h=Math.max(2,Math.round(h));
+    const left=Math.round((stageW-w)/2), top=Math.round((stageH-h)/2);
+    mainCanvas.style.width=w+'px';
+    mainCanvas.style.height=h+'px';
+    mainCanvas.style.left=left+'px';
+    mainCanvas.style.top=top+'px';
+    renderer.setSize(w,h,false);
+    canvasBounds={x:left,y:top,w,h};
+  } else {
+    mainCanvas.style.width='100%';
+    mainCanvas.style.height='100%';
+    mainCanvas.style.left='0';
+    mainCanvas.style.top='0';
+    renderer.setSize(stageW,stageH,false);
+    canvasBounds={x:0,y:0,w:stageW,h:stageH};
+  }
   const pw=$('camCanvas').parentElement.clientWidth;
   camRenderer.setSize(pw, pw/state.aspect, false);
 }
