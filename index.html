@@ -89,6 +89,34 @@
       <input type="range" id="studioH" min="2.5" max="10" step="0.1" value="5.5">
       <p class="note">壁・床のワイヤーフレームはスタジオの広さの目安です。</p>
 
+      <h2 class="grouplabel" style="margin-top:18px;">上面ビュー</h2>
+      <label>回転 <span class="val" id="topRotVal">0°</span></label>
+      <input type="range" id="topRot" min="-180" max="180" step="1" value="0">
+
+      <h2 class="grouplabel" style="margin-top:18px;">注釈(扉・注意エリア)</h2>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button id="annoAddDoorBtn" style="flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">+ 扉</button>
+        <button id="annoAddZoneBtn" style="flex:1;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;">+ 注意エリア</button>
+      </div>
+      <p class="note">上面ビューでドラッグして位置を動かせます。</p>
+      <div id="annoList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;"></div>
+      <div id="annoEditor" style="display:none;margin-top:10px;padding-top:14px;border-top:1px solid var(--line);">
+        <h2 class="grouplabel">選択中の注釈</h2>
+        <div class="row-inline"><span class="lbl">ラベル</span><input type="text" id="annoLabelInput" style="width:150px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-size:12.5px;padding:4px 6px;border-radius:4px;"></div>
+        <div class="row-inline"><span class="lbl">色</span><input type="color" id="annoColorInput" style="width:60px;height:26px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;"></div>
+        <label>幅 <span class="val" id="annoWVal">0.9 m</span></label>
+        <input type="range" id="annoWSlider" min="0.3" max="10" step="0.1" value="0.9">
+        <label id="annoHLabel">奥行 <span class="val" id="annoHVal">1.5 m</span></label>
+        <input type="range" id="annoHSlider" min="0.3" max="10" step="0.1" value="1.5">
+        <label>向き <span class="val" id="annoRotVal">0°</span></label>
+        <input type="range" id="annoRotSlider" min="-180" max="180" step="1" value="0">
+        <label>左右位置 <span class="val" id="annoXVal">0.0 m</span></label>
+        <input type="range" id="annoXSlider" min="-15" max="15" step="0.1" value="0">
+        <label>奥行き位置 <span class="val" id="annoZVal">0.0 m</span></label>
+        <input type="range" id="annoZSlider" min="0" max="30" step="0.1" value="0">
+        <button id="annoDeleteBtn" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:12px;margin-top:6px;">この注釈を削除</button>
+      </div>
+
       <h2 class="grouplabel" style="margin-top:18px;">会場図面</h2>
       <input type="file" id="floorplanImage" accept="image/*" style="width:100%;font-size:11.5px;color:var(--muted);margin-bottom:10px;">
       <div id="floorplanCalibrateArea" style="display:none;">
@@ -344,7 +372,8 @@ const state={
   backdrops:[{ id:1, name:'背景1', color:'#2e8b57', imageDataURL:null, bdW:4.4, bdH:2.5, bdDrape:1.7, bdRot:0, bdX:0, bdDepth:14.5, type:'cloth', ledModule:0.5 }],
   activeBackdrop:0,
   backdropType:'cloth',
-  floorplan:null
+  floorplan:null,
+  annotations:[], selectedAnnotation:-1
 };
 
 /* ---------- tabs ---------- */
@@ -1168,6 +1197,70 @@ $('pinDeleteBtn').addEventListener('click', ()=>{
     rebuildPinList(); updatePinEditor(); onParamsChanged();
   }
 });
+
+/* ---------- annotations: doors + caution zones ---------- */
+function rebuildAnnoList(){
+  const box=$('annoList'); box.innerHTML='';
+  state.annotations.forEach((a,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;border:1px solid '+(i===state.selectedAnnotation?'var(--amber)':'var(--line)')+';background:'+(i===state.selectedAnnotation?'var(--amber-dim)':'var(--panel-2)')+';';
+    const dot=document.createElement('span');
+    dot.style.cssText=`width:14px;height:14px;border-radius:${a.type==='door'?'2px':'50%'};background:${a.color};flex-shrink:0;`;
+    const label=document.createElement('span');
+    label.style.cssText='flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    label.textContent=a.label;
+    const del=document.createElement('button');
+    del.textContent='×';
+    del.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;';
+    del.onclick=(ev)=>{ ev.stopPropagation(); state.annotations.splice(i,1); if(state.selectedAnnotation===i) state.selectedAnnotation=-1; else if(state.selectedAnnotation>i) state.selectedAnnotation--; rebuildAnnoList(); updateAnnoEditor(); onParamsChanged(); };
+    row.onclick=()=>{ state.selectedAnnotation=i; rebuildAnnoList(); updateAnnoEditor(); onParamsChanged(); };
+    row.appendChild(dot); row.appendChild(label); row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+function updateAnnoEditor(){
+  const a=state.annotations[state.selectedAnnotation];
+  if(!a){ $('annoEditor').style.display='none'; return; }
+  $('annoEditor').style.display='';
+  $('annoLabelInput').value=a.label;
+  $('annoColorInput').value=a.color;
+  $('annoWSlider').value=a.w; $('annoWVal').textContent=a.w.toFixed(1)+' m';
+  $('annoHSlider').value=a.h; $('annoHVal').textContent=a.h.toFixed(1)+' m';
+  $('annoRotSlider').value=a.rotation; $('annoRotVal').textContent=a.rotation.toFixed(0)+'°';
+  $('annoXSlider').value=a.x; $('annoXVal').textContent=a.x.toFixed(1)+' m';
+  $('annoZSlider').value=a.z; $('annoZVal').textContent=a.z.toFixed(1)+' m';
+  const isDoor=a.type==='door';
+  $('annoHLabel').style.display = isDoor ? 'none':'';
+  $('annoHSlider').style.display = isDoor ? 'none':'';
+}
+function addAnnotation(type){
+  const a={
+    type,
+    label: type==='door' ? '扉'+(state.annotations.filter(x=>x.type==='door').length+1) : '注意エリア'+(state.annotations.filter(x=>x.type==='zone').length+1),
+    color: type==='door' ? '#E8A33D' : '#D96C6C',
+    w: type==='door' ? 0.9 : 1.5, h:1.5, rotation:0, x:0, z:Math.min(2, parseFloat($('studioD').value)/2)
+  };
+  state.annotations.push(a);
+  state.selectedAnnotation=state.annotations.length-1;
+  rebuildAnnoList(); updateAnnoEditor(); onParamsChanged();
+}
+$('annoAddDoorBtn').addEventListener('click', ()=>addAnnotation('door'));
+$('annoAddZoneBtn').addEventListener('click', ()=>addAnnotation('zone'));
+$('annoLabelInput').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.label=$('annoLabelInput').value; rebuildAnnoList(); });
+$('annoColorInput').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.color=$('annoColorInput').value; rebuildAnnoList(); onParamsChanged(); });
+$('annoWSlider').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.w=parseFloat($('annoWSlider').value); $('annoWVal').textContent=a.w.toFixed(1)+' m'; onParamsChanged(); });
+$('annoHSlider').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.h=parseFloat($('annoHSlider').value); $('annoHVal').textContent=a.h.toFixed(1)+' m'; onParamsChanged(); });
+$('annoRotSlider').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.rotation=parseFloat($('annoRotSlider').value); $('annoRotVal').textContent=a.rotation.toFixed(0)+'°'; onParamsChanged(); });
+$('annoXSlider').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.x=parseFloat($('annoXSlider').value); $('annoXVal').textContent=a.x.toFixed(1)+' m'; onParamsChanged(); });
+$('annoZSlider').addEventListener('input', ()=>{ const a=state.annotations[state.selectedAnnotation]; if(!a) return; a.z=parseFloat($('annoZSlider').value); $('annoZVal').textContent=a.z.toFixed(1)+' m'; onParamsChanged(); });
+$('annoDeleteBtn').addEventListener('click', ()=>{
+  if(state.selectedAnnotation>=0){
+    state.annotations.splice(state.selectedAnnotation,1);
+    state.selectedAnnotation=-1;
+    rebuildAnnoList(); updateAnnoEditor(); onParamsChanged();
+  }
+});
+
 ['paletteAdult','paletteChild'].forEach(id=>{
   $(id).addEventListener('dragstart', e=>{
     e.dataTransfer.setData('text/plain', id==='paletteAdult'?'adult':'child');
@@ -1340,6 +1433,38 @@ function rebuildScene(){
   const activeBdSize=effectiveBdSize(activeBd);
   const bdW=activeBdSize.w, bdH=activeBdSize.h, offX=activeBd.bdX;
 
+  state.annotations.forEach(a=>{
+    const group=new THREE.Group();
+    const col=new THREE.Color(a.color);
+    if(a.type==='zone'){
+      const mat=new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.32, side:THREE.DoubleSide, depthWrite:false});
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(a.w,a.h), mat);
+      mesh.rotation.x=-Math.PI/2; mesh.position.y=0.012;
+      group.add(mesh);
+      const edgeGeo=new THREE.EdgesGeometry(new THREE.PlaneGeometry(a.w,a.h));
+      const edgeLine=new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color:col}));
+      edgeLine.rotation.x=-Math.PI/2; edgeLine.position.y=0.013;
+      group.add(edgeLine);
+    } else if(a.type==='door'){
+      const w=a.w;
+      const lineMat=new THREE.LineBasicMaterial({color:col});
+      const openingGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-w/2,0.02,0), new THREE.Vector3(w/2,0.02,0)]);
+      group.add(new THREE.Line(openingGeo, lineMat));
+      const hinge=new THREE.Vector3(-w/2,0.02,0);
+      const arcPts=[];
+      const segs=16;
+      for(let s=0;s<=segs;s++){
+        const t=(s/segs)*(Math.PI/2);
+        arcPts.push(new THREE.Vector3(hinge.x+w*Math.sin(t), 0.02, hinge.z+w*Math.cos(t)));
+      }
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), lineMat));
+      const leafGeo=new THREE.BufferGeometry().setFromPoints([hinge, new THREE.Vector3(hinge.x+w,0.02,hinge.z)]);
+      group.add(new THREE.Line(leafGeo, lineMat));
+    }
+    group.position.set(a.x,0,a.z);
+    group.rotation.y=(a.rotation||0)*Math.PI/180;
+    dynamicGroup.add(group);
+  });
 
   state.cameras.forEach((cam,i)=>{
     const isActive=i===state.activeCam;
@@ -1407,6 +1532,10 @@ function updateCamerasAndHUD(studioDims, bdInfo){
   topCam.top=topExtent/canvasAspect; topCam.bottom=-topExtent/canvasAspect;
   topCam.near=0.1; topCam.far=200;
   topCam.position.set(0, studioDims.h+15, centerZ);
+  {
+    const topRotRad=parseFloat($('topRot').value)*Math.PI/180;
+    topCam.up.set(-Math.sin(topRotRad),0,-Math.cos(topRotRad));
+  }
   topCam.lookAt(0,0,centerZ);
   topCam.updateProjectionMatrix();
 
@@ -1473,6 +1602,9 @@ function updateDimLabels(activeCam, studioDims, bdInfo){
   });
   state.cameras.forEach(cam=>{
     pts.push({p:new THREE.Vector3(parseFloat(cam.camX)||0, (parseFloat(cam.camH)||0)+0.3, parseFloat(cam.camDepth)||0), text:cam.name});
+  });
+  state.annotations.forEach(a=>{
+    pts.push({p:new THREE.Vector3(a.x, 0.3, a.z), text:a.label});
   });
   if(state.blockingMode){
     const adultH=parseFloat($('adultH').value), childH=parseFloat($('childH').value);
@@ -1556,9 +1688,10 @@ mainCanvas.addEventListener('pointerdown', e=>{
       if(target.type==='camera' && target.index!==state.activeCam) selectCamera(target.index);
       if(target.type==='backdrop' && target.index!==state.activeBackdrop) selectBackdrop(target.index);
       if(target.type==='pin') state.selectedPin=target.index;
-    } else if(state.blockingMode && state.selectedPin!==-1){
-      state.selectedPin=-1;
-      onParamsChanged();
+      if(target.type==='annotation'){ state.selectedAnnotation=target.index; rebuildAnnoList(); updateAnnoEditor(); }
+    } else {
+      if(state.blockingMode && state.selectedPin!==-1){ state.selectedPin=-1; onParamsChanged(); }
+      if(state.selectedAnnotation!==-1){ state.selectedAnnotation=-1; rebuildAnnoList(); updateAnnoEditor(); onParamsChanged(); }
     }
   }
 });
@@ -1589,6 +1722,14 @@ window.addEventListener('pointermove', e=>{
     } else if(dragObject.type==='pin' && state.pins[dragObject.index]){
       state.pins[dragObject.index].x=wp.x;
       state.pins[dragObject.index].z=Math.max(0, wp.z);
+      onParamsChanged();
+    } else if(dragObject.type==='annotation' && state.annotations[dragObject.index]){
+      const a=state.annotations[dragObject.index];
+      a.x=wp.x; a.z=Math.max(0, wp.z);
+      if(dragObject.index===state.selectedAnnotation){
+        $('annoXSlider').value=a.x; $('annoXVal').textContent=a.x.toFixed(1)+' m';
+        $('annoZSlider').value=a.z; $('annoZVal').textContent=a.z.toFixed(1)+' m';
+      }
       onParamsChanged();
     }
     return;
@@ -1642,6 +1783,7 @@ function onParamsChanged(){
   $('studioWVal').textContent=parseFloat($('studioW').value).toFixed(1)+' m';
   $('studioDVal').textContent=parseFloat($('studioD').value).toFixed(1)+' m';
   $('studioHVal').textContent=parseFloat($('studioH').value).toFixed(1)+' m';
+  $('topRotVal').textContent=parseFloat($('topRot').value).toFixed(0)+'°';
   $('spacingVal').textContent=parseFloat($('spacing').value).toFixed(2)+' m';
   $('rowGapVal').textContent=parseFloat($('rowGap').value).toFixed(2)+' m';
   $('bdGapVal').textContent=parseFloat($('bdGap').value).toFixed(1)+' m';
@@ -1691,7 +1833,7 @@ function onParamsChanged(){
   updateCamerasAndHUD(studioDims, bdInfo);
 }
 
-['studioW','studioD','studioH','spacing','rowGap','bdGap',
+['studioW','studioD','studioH','topRot','spacing','rowGap','bdGap',
  'adultH','childH','bdW','bdH','bdDrape','bdRot','bdX','bdDepth','camDepth','camH','camX','tilt','pan','focal'].forEach(id=>{
   $(id).addEventListener('input', onParamsChanged);
 });
@@ -1725,6 +1867,10 @@ function animate(){
     state.cameras.forEach((cam,i)=>{
       const s=project(topCam, new THREE.Vector3(parseFloat(cam.camX)||0,0,parseFloat(cam.camDepth)||0));
       if(s.visible) dragTargets.push({type:'camera', index:i, x:s.x, y:s.y});
+    });
+    state.annotations.forEach((a,i)=>{
+      const s=project(topCam, new THREE.Vector3(a.x,0,a.z));
+      if(s.visible) dragTargets.push({type:'annotation', index:i, x:s.x, y:s.y});
     });
     if(state.blockingMode){
       state.pins.forEach((pin,i)=>{
@@ -1870,7 +2016,7 @@ function serializeConfig(){
     fields:{}, cameras:state.cameras, activeCam:state.activeCam,
     backdrops:state.backdrops, activeBackdrop:state.activeBackdrop,
     blockingMode:state.blockingMode, pins:state.pins, rowCounts:state.rowCounts,
-    scenes:state.scenes, activeScene:state.activeScene, floorplan:state.floorplan };
+    scenes:state.scenes, activeScene:state.activeScene, floorplan:state.floorplan, annotations:state.annotations };
   PLAIN_FIELDS.forEach(id=>{ cfg.fields[id]=$(id).value; });
   return cfg;
 }
@@ -1925,6 +2071,11 @@ function applyConfig(cfg){
     $('floorplanControls').style.display='none';
     $('floorplanCalibrateArea').style.display='none';
   }
+
+  state.annotations=Array.isArray(cfg.annotations) ? cfg.annotations : [];
+  state.selectedAnnotation=-1;
+  rebuildAnnoList();
+  updateAnnoEditor();
 
   if(Array.isArray(cfg.cameras) && cfg.cameras.length){
     state.cameras=cfg.cameras;
@@ -1994,6 +2145,8 @@ rebuildCameraChips();
 buildRowCountInputs();
 rebuildSceneChips();
 rebuildBackdropChips();
+rebuildAnnoList();
+updateAnnoEditor();
 updatePerspCameraFromOrbit();
 resizeRenderers();
 onParamsChanged();
