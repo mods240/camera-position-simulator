@@ -350,6 +350,7 @@
         <button id="videoPauseBtn" title="全パネルの動画を一時停止" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">⏸ 停止</button>
         <button id="videoResetBtn" title="全パネルの動画を先頭に戻す" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">⏮ 先頭</button>
         <button id="videoRecordBtn" title="先頭から再生しながら画面を録画" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">🔴 録画+再生</button>
+        <button id="rulerBtn" title="上面ビューで2点クリックして距離を測る" style="margin-left:10px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📏 定規</button>
         <button id="screenshotBtn" title="スクリーンショットを保存" style="margin-left:10px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📷 保存</button>
         <button id="configSaveBtn" title="設定を保存" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">💾 設定保存</button>
         <button id="configLoadBtn" title="設定を読み込む" style="background:var(--panel-2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">📂 設定読込</button>
@@ -396,7 +397,8 @@ const state={
   backdropType:'cloth',
   floorplan:null,
   annotations:[], selectedAnnotation:-1,
-  photoOverrides:{}
+  photoOverrides:{},
+  rulerMode:false, rulerPoints:[]
 };
 
 /* ---------- sidebar resize ---------- */
@@ -575,6 +577,15 @@ $('videoRecordBtn').addEventListener('click', ()=>{
   $('videoRecordBtn').textContent='⏹ 録画停止';
   $('videoRecordBtn').style.borderColor='var(--red)';
   $('videoRecordBtn').style.color='var(--red)';
+});
+
+$('rulerBtn').addEventListener('click', ()=>{
+  state.rulerMode=!state.rulerMode;
+  state.rulerPoints=[];
+  $('rulerBtn').style.borderColor = state.rulerMode ? 'var(--amber)' : 'var(--line)';
+  $('rulerBtn').style.color = state.rulerMode ? 'var(--amber)' : 'var(--muted)';
+  $('rulerBtn').style.background = state.rulerMode ? 'var(--amber-dim)' : 'var(--panel-2)';
+  onParamsChanged();
 });
 
 function getBackdropFieldsFromDOM(){
@@ -1562,6 +1573,23 @@ function rebuildScene(){
     const handleDist=Math.max(1.0, Math.max(sa.w,sa.h)/2+0.5);
     dynamicGroup.add(makeRotateHandle(sa.x, sa.z, sa.rotation, handleDist, 0xD96C6C));
   }
+  if(state.rulerPoints.length>=1){
+    const rulerMat=new THREE.LineBasicMaterial({color:0xE8A33D});
+    state.rulerPoints.forEach(p=>{
+      const dot=new THREE.Mesh(new THREE.SphereGeometry(0.08,10,8), new THREE.MeshBasicMaterial({color:0xE8A33D}));
+      dot.position.set(p.x,0.03,p.z);
+      dot.layers.set(1);
+      dynamicGroup.add(dot);
+    });
+    if(state.rulerPoints.length===2){
+      const [rp1,rp2]=state.rulerPoints;
+      const rulerLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(rp1.x,0.03,rp1.z), new THREE.Vector3(rp2.x,0.03,rp2.z)
+      ]), rulerMat);
+      rulerLine.layers.set(1);
+      dynamicGroup.add(rulerLine);
+    }
+  }
 
   state.cameras.forEach((cam,i)=>{
     const isActive=i===state.activeCam;
@@ -1587,6 +1615,21 @@ function rebuildScene(){
   const camZ=parseFloat(activeCamState.camDepth);
 
   const frontRowZ=backdropDepth-bdGap-(rows-1)*rowGap;
+  if(!state.blockingMode && frontRowZ>0.05){
+    const dimMat=new THREE.LineBasicMaterial({color:0x4FA3A0});
+    const dimLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0,0.015,0), new THREE.Vector3(0,0.015,frontRowZ)
+    ]), dimMat);
+    dimLine.layers.set(1);
+    dynamicGroup.add(dimLine);
+    [0, frontRowZ].forEach(zz=>{
+      const tick=new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.15,0.015,zz), new THREE.Vector3(0.15,0.015,zz)
+      ]), dimMat);
+      tick.layers.set(1);
+      dynamicGroup.add(tick);
+    });
+  }
   return {backdropDepth, bdW, bdH, bdX:offX, maxRowWidth, camZ, frontRowZ};
 }
 
@@ -1708,6 +1751,14 @@ function updateDimLabels(activeCam, studioDims, bdInfo){
   state.annotations.forEach(a=>{
     pts.push({p:new THREE.Vector3(a.x, 0.3, a.z), text:a.label});
   });
+  if(!state.blockingMode && bdInfo.frontRowZ!==undefined && bdInfo.frontRowZ>0.05){
+    pts.push({p:new THREE.Vector3(0, 0.02, bdInfo.frontRowZ/2), text:`壁→前列 ${bdInfo.frontRowZ.toFixed(2)}m`});
+  }
+  if(state.rulerPoints.length===2){
+    const [p1,p2]=state.rulerPoints;
+    const dist=Math.hypot(p2.x-p1.x, p2.z-p1.z);
+    pts.push({p:new THREE.Vector3((p1.x+p2.x)/2, 0.05, (p1.z+p2.z)/2), text:`📏 ${dist.toFixed(2)}m`});
+  }
   if(state.blockingMode){
     const adultH=parseFloat($('adultH').value), childH=parseFloat($('childH').value);
     state.pins.forEach(pin=>{
@@ -1829,6 +1880,13 @@ mainCanvas.addEventListener('pointerdown', e=>{
   if(state.view==='top'){
     const rect=mainCanvas.getBoundingClientRect();
     const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    if(state.rulerMode){
+      const wp=screenToWorldXZ(px,py,topCam);
+      if(state.rulerPoints.length>=2) state.rulerPoints=[];
+      state.rulerPoints.push({x:wp.x, z:Math.max(0,wp.z)});
+      onParamsChanged();
+      return;
+    }
     const target=findNearestDragTarget(px,py);
     if(target){
       dragObject=target;
