@@ -162,8 +162,14 @@
 
         <h2 class="grouplabel" style="margin-top:16px;">配列</h2>
         <div class="row-inline"><span class="lbl">列数(前後)</span><input type="number" id="rows" value="3" min="1" max="15"></div>
+        <div class="row-inline"><span class="lbl">追加する人数</span>
+          <div class="toggle" style="width:140px;">
+            <button data-addmode="adult" class="active">大人</button>
+            <button data-addmode="child">子供</button>
+          </div>
+        </div>
         <div id="rowCountInputs" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
-        <p class="note">各列の人数を個別に指定できます。子供は前の列から優先的に配置されます。</p>
+        <p class="note">+/−で「追加する人数」に選んだ大人/子供を増減できます。×で列ごと削除できます。</p>
         <p class="note" id="rowBreakdownDisplay" style="margin-top:-6px;">行ごとの人数: —</p>
         <p class="note" id="rowBalanceDisplay" style="font-weight:bold;">—</p>
         <label>横の人数間隔 <span class="val" id="spacingVal">0.6 m</span></label>
@@ -368,7 +374,8 @@ const state={
   cameras:[{ name:'カメラ1', camDepth:2.0, camX:0, camH:1.3, tilt:-7.9, pan:0, camMode:'still', sensorWidth:36, aspect:16/9, focal:35, engPreset:0, engZoom:0 }],
   activeCam:0,
   blockingMode:false, pins:[], selectedPin:-1,
-  rowCounts:[2,3,5],
+  rowCounts:[{adult:1,child:1},{adult:2,child:1},{adult:3,child:2}],
+  addMode:'adult',
   scenes:[], activeScene:-1,
   backdrops:[{ id:1, name:'背景1', color:'#2e8b57', imageDataURL:null, bdW:4.4, bdH:2.5, bdDrape:1.7, bdRot:0, bdX:0, bdDepth:14.5, type:'cloth', ledModule:0.5 }],
   activeBackdrop:0,
@@ -905,29 +912,57 @@ document.querySelectorAll('.view-toggle button').forEach(b=>{
 });
 
 /* ---------- people layout (explicit per-row counts) ---------- */
-let rowCountInputEls=[];
 function buildRowCountInputs(){
   const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
-  while(state.rowCounts.length<rows) state.rowCounts.push(0);
+  while(state.rowCounts.length<rows) state.rowCounts.push({adult:0,child:0});
   state.rowCounts.length=rows;
   const box=$('rowCountInputs'); box.innerHTML='';
-  rowCountInputEls=[];
-  state.rowCounts.forEach((count,i)=>{
+  state.rowCounts.forEach((rv,i)=>{
     const row=document.createElement('div');
-    row.className='row-inline';
+    row.style.cssText='display:flex;align-items:center;gap:6px;';
     const label=i===0?'最前列':(i===rows-1?'最後列':`${i+1}列目`);
-    const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=label;
-    const input=document.createElement('input');
-    input.type='number'; input.min='0'; input.max='80'; input.value=count; input.style.width='64px';
-    input.addEventListener('input', ()=>{
-      state.rowCounts[i]=Math.max(0, parseInt(input.value)||0);
+    const lbl=document.createElement('span');
+    lbl.style.cssText='width:52px;font-size:12px;color:var(--muted);flex-shrink:0;';
+    lbl.textContent=label;
+    const minusBtn=document.createElement('button');
+    minusBtn.textContent='−';
+    minusBtn.style.cssText='width:26px;height:26px;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;';
+    const totalSpan=document.createElement('span');
+    totalSpan.style.cssText='width:56px;text-align:center;font-family:var(--mono);font-size:12.5px;color:var(--text);';
+    const setTotalText=()=>{ totalSpan.textContent=`${rv.adult+rv.child}(大${rv.adult}・子${rv.child})`; };
+    setTotalText();
+    const plusBtn=document.createElement('button');
+    plusBtn.textContent='+';
+    plusBtn.style.cssText='width:26px;height:26px;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;';
+    const delBtn=document.createElement('button');
+    delBtn.textContent='×';
+    delBtn.style.cssText='margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;';
+    minusBtn.onclick=()=>{
+      if(state.addMode==='adult'){ if(rv.adult>0) rv.adult--; } else { if(rv.child>0) rv.child--; }
+      setTotalText(); onParamsChanged();
+    };
+    plusBtn.onclick=()=>{
+      if(state.addMode==='adult') rv.adult++; else rv.child++;
+      setTotalText(); onParamsChanged();
+    };
+    delBtn.onclick=()=>{
+      state.rowCounts.splice(i,1);
+      if(state.rowCounts.length===0) state.rowCounts.push({adult:0,child:0});
+      $('rows').value=state.rowCounts.length;
+      buildRowCountInputs();
       onParamsChanged();
-    });
-    rowCountInputEls.push(input);
-    row.appendChild(lbl); row.appendChild(input);
+    };
+    row.appendChild(lbl); row.appendChild(minusBtn); row.appendChild(totalSpan); row.appendChild(plusBtn); row.appendChild(delBtn);
     box.appendChild(row);
   });
 }
+document.querySelectorAll('#tab-people .toggle button[data-addmode]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tab-people .toggle button[data-addmode]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.addMode=b.dataset.addmode;
+  };
+});
 $('rows').addEventListener('input', ()=>{
   const newRows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
   resizeRowCounts(newRows);
@@ -938,16 +973,24 @@ function resizeRowCounts(newRows){
   const cur=state.rowCounts;
   if(newRows===cur.length) return;
   if(newRows>cur.length){
-    while(cur.length<newRows) cur.unshift(0);
+    while(cur.length<newRows) cur.unshift({adult:0,child:0});
   } else {
     while(cur.length>newRows) cur.shift();
   }
 }
 function getRowCounts(){
   const rows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
-  while(state.rowCounts.length<rows) state.rowCounts.push(0);
+  while(state.rowCounts.length<rows) state.rowCounts.push({adult:0,child:0});
   state.rowCounts.length=rows;
-  return state.rowCounts.slice();
+  return state.rowCounts.map(rv=>rv.adult+rv.child);
+}
+function getRowTypesData(){
+  return state.rowCounts.map(rv=>{
+    const arr=[];
+    for(let k=0;k<rv.child;k++) arr.push('child');
+    for(let k=0;k<rv.adult;k++) arr.push('adult');
+    return arr;
+  });
 }
 function updatePeopleTotals(source){
   const rowCounts=getRowCounts();
@@ -1334,7 +1377,7 @@ let lastRowCounts=[10];
 function rebuildScene(){
   disposeGroup(dynamicGroup);
 
-  const {total, child:childCount, rowCounts:rowCountsRaw}=updatePeopleTotals();
+  const {total, rowCounts:rowCountsRaw}=updatePeopleTotals();
   const rows=rowCountsRaw.length;
   const spacing=parseFloat($('spacing').value);
   const rowGap=parseFloat($('rowGap').value);
@@ -1343,7 +1386,7 @@ function rebuildScene(){
   const bdGap=parseFloat($('bdGap').value);
   const backdropDepth=parseFloat($('bdDepth').value);
 
-  const rowsData=distributeTypes(rowCountsRaw, childCount);
+  const rowsData=getRowTypesData();
   lastRowCounts=rowsData.map(r=>r.length);
 
   let maxRowWidth;
@@ -1365,8 +1408,7 @@ function rebuildScene(){
   } else {
     $('pinCountDisplay').textContent='';
     $('rowBreakdownDisplay').textContent='行ごとの人数: '+
-      lastRowCounts.map((n,i)=>(i===0?'前列':(i===lastRowCounts.length-1?'最後列':`${i+1}列目`))+n).join(' → ')+
-      (lastRowCounts.reduce((a,b)=>a+b,0)!==total?`(合計${lastRowCounts.reduce((a,b)=>a+b,0)}人・指定と差異あり)`:'');
+      lastRowCounts.map((n,i)=>(i===0?'前列':(i===lastRowCounts.length-1?'最後列':`${i+1}列目`))+n).join(' → ');
 
     rowsData.forEach((rowPeople,i)=>{
       const depth=backdropDepth-bdGap-(rows-1-i)*rowGap;
@@ -2127,7 +2169,7 @@ function applyConfig(cfg){
   }
 
   if(Array.isArray(cfg.rowCounts) && cfg.rowCounts.length){
-    state.rowCounts=cfg.rowCounts.slice();
+    state.rowCounts=cfg.rowCounts.map(rv=> typeof rv==='number' ? {adult:rv, child:0} : {adult:rv.adult||0, child:rv.child||0});
     $('rows').value=state.rowCounts.length;
   }
   buildRowCountInputs();
