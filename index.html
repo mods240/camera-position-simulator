@@ -1415,9 +1415,17 @@ function rebuildScene(){
       roughness: bd.type==='led' ? 0.4 : 0.9, side:THREE.DoubleSide
     });
     const {w:panelW, h:panelH}=effectiveBdSize(bd);
-    const panel=new THREE.Mesh(new THREE.PlaneGeometry(panelW,panelH), bdMat);
-    panel.rotation.y=Math.PI;
-    panel.position.set(0,panelH/2,0);
+    let panel;
+    if(bd.type==='led'){
+      const thickness=0.35;
+      const caseMat=new THREE.MeshStandardMaterial({color:0x5a5f66, roughness:0.6});
+      panel=new THREE.Mesh(new THREE.BoxGeometry(panelW,panelH,thickness), [caseMat,caseMat,caseMat,caseMat,bdMat,bdMat]);
+      panel.position.set(0,panelH/2,thickness/2);
+    } else {
+      panel=new THREE.Mesh(new THREE.PlaneGeometry(panelW,panelH), bdMat);
+      panel.rotation.y=Math.PI;
+      panel.position.set(0,panelH/2,0);
+    }
     bdGroup.add(panel);
     if(bd.type!=='led' && bd.bdDrape>0.01){
       const floorPiece=new THREE.Mesh(new THREE.PlaneGeometry(panelW,bd.bdDrape), bdMat);
