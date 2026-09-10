@@ -14,7 +14,10 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
   .wrap{display:flex;min-height:100vh;flex-wrap:wrap;}
-  .controls{width:300px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);max-height:100vh;overflow-y:auto;}
+  .controls{width:340px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);max-height:100vh;overflow-y:auto;}
+  .resize-handle{width:6px;flex-shrink:0;cursor:col-resize;background:var(--panel);position:relative;}
+  .resize-handle:hover, .resize-handle.dragging{background:var(--amber-dim);}
+  .resize-handle::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:28px;background:var(--line);border-radius:1px;}
   .tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2;}
   .tabs button{flex:1;padding:12px 4px;font-size:12px;background:none;border:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;}
   .tabs button.active{color:var(--amber);border-bottom-color:var(--amber);}
@@ -66,6 +69,7 @@
   @media (max-width:900px){
     .wrap{flex-direction:column;}
     .controls{width:100%;border-right:none;border-bottom:1px solid var(--line);max-height:none;}
+    .resize-handle{display:none;}
   }
 </style>
 </head>
@@ -328,6 +332,7 @@
       </div>
     </div>
   </div>
+  <div class="resize-handle" id="resizeHandle"></div>
 
   <div class="main">
     <div class="stage-head">
@@ -354,6 +359,14 @@
       <canvas id="mainCanvas"></canvas>
       <div class="overlay-info" id="overlayInfo"></div>
       <div id="dimLabels"></div>
+      <div id="photoPersonMenu" style="display:none;position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;z-index:50;box-shadow:0 6px 18px rgba(0,0,0,0.4);width:150px;">
+        <div class="toggle" style="margin-bottom:8px;">
+          <button data-ptype="adult">大人</button>
+          <button data-ptype="child">子供</button>
+        </div>
+        <input type="color" id="photoPersonColor" style="width:100%;height:28px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;margin-bottom:8px;">
+        <button id="photoPersonReset" style="width:100%;padding:6px 0;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;font-size:11.5px;">リセット</button>
+      </div>
       <div class="hint" id="dragHint" style="display:none;">ドラッグで回転・ホイールでズーム</div>
       <div class="cam-preview">
         <div class="cam-label" id="camLabel">カメラ 35mm 16:9</div>
@@ -381,8 +394,34 @@ const state={
   activeBackdrop:0,
   backdropType:'cloth',
   floorplan:null,
-  annotations:[], selectedAnnotation:-1
+  annotations:[], selectedAnnotation:-1,
+  photoOverrides:{}
 };
+
+/* ---------- sidebar resize ---------- */
+(function(){
+  const handle=document.getElementById('resizeHandle');
+  const controlsEl=document.querySelector('.controls');
+  let dragging=false;
+  handle.addEventListener('pointerdown', e=>{
+    dragging=true;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  });
+  window.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const min=240, max=Math.min(700, window.innerWidth*0.6);
+    const w=Math.max(min, Math.min(max, e.clientX));
+    controlsEl.style.width=w+'px';
+  });
+  window.addEventListener('pointerup', ()=>{
+    if(!dragging) return;
+    dragging=false;
+    handle.classList.remove('dragging');
+    if(typeof resizeRenderers==='function') resizeRenderers();
+    if(typeof onParamsChanged==='function') onParamsChanged();
+  });
+})();
 
 /* ---------- tabs ---------- */
 document.querySelectorAll('.tabs button').forEach(b=>{
@@ -1374,6 +1413,7 @@ function makePerson(x,z,height,isChild,colorOverride){
 }
 
 let lastRowCounts=[10];
+let photoPersonPositions=[];
 function rebuildScene(){
   disposeGroup(dynamicGroup);
 
@@ -1410,12 +1450,20 @@ function rebuildScene(){
     $('rowBreakdownDisplay').textContent='行ごとの人数: '+
       lastRowCounts.map((n,i)=>(i===0?'前列':(i===lastRowCounts.length-1?'最後列':`${i+1}列目`))+n).join(' → ');
 
+    photoPersonPositions=[];
     rowsData.forEach((rowPeople,i)=>{
       const depth=backdropDepth-bdGap-(rows-1-i)*rowGap;
       const n=rowPeople.length; const rowWidth=(n-1)*spacing;
       rowPeople.forEach((type,j)=>{
-        const x=-rowWidth/2+j*spacing;
-        dynamicGroup.add(makePerson(x, depth, type==='child'?childHt:adultH, type==='child'));
+        const key=i+'-'+j;
+        const ov=state.photoOverrides[key];
+        const x=(ov && ov.x!==undefined) ? ov.x : (-rowWidth/2+j*spacing);
+        const z=(ov && ov.z!==undefined) ? ov.z : depth;
+        const actualType=(ov && ov.type) ? ov.type : type;
+        const h=actualType==='child'?childHt:adultH;
+        const person=makePerson(x, z, h, actualType==='child', ov&&ov.color?ov.color:undefined);
+        dynamicGroup.add(person);
+        photoPersonPositions.push({key, x, z, baseType:type});
       });
     });
     maxRowWidth=Math.max(0, ...rowsData.map((rowPeople,i)=>(rowPeople.length-1)*spacing));
@@ -1713,6 +1761,51 @@ function findNearestDragTarget(px,py){
   });
   return best;
 }
+let contextMenuKey=null;
+mainCanvas.addEventListener('contextmenu', e=>{
+  if(state.view!=='top' || state.blockingMode){ $('photoPersonMenu').style.display='none'; return; }
+  e.preventDefault();
+  const rect=mainCanvas.getBoundingClientRect();
+  const px=e.clientX-rect.left, py=e.clientY-rect.top;
+  const target=findNearestDragTarget(px,py);
+  if(!target || target.type!=='photoPerson'){ $('photoPersonMenu').style.display='none'; return; }
+  contextMenuKey=target.key;
+  const ov=state.photoOverrides[contextMenuKey]||{};
+  const curType=ov.type || target.baseType;
+  document.querySelectorAll('#photoPersonMenu [data-ptype]').forEach(b=>b.classList.toggle('active', b.dataset.ptype===curType));
+  $('photoPersonColor').value = ov.color || (target.baseType==='child' ? '#E8A33D' : '#D9B98A');
+  const stageRect=stageEl.getBoundingClientRect();
+  const menu=$('photoPersonMenu');
+  menu.style.left=(e.clientX-stageRect.left)+'px';
+  menu.style.top=(e.clientY-stageRect.top)+'px';
+  menu.style.display='block';
+});
+document.addEventListener('pointerdown', e=>{
+  const menu=$('photoPersonMenu');
+  if(menu.style.display!=='none' && !menu.contains(e.target) && e.target!==mainCanvas){
+    menu.style.display='none';
+  }
+});
+document.querySelectorAll('#photoPersonMenu [data-ptype]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    if(!contextMenuKey) return;
+    document.querySelectorAll('#photoPersonMenu [data-ptype]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    state.photoOverrides[contextMenuKey]=Object.assign(state.photoOverrides[contextMenuKey]||{}, {type:b.dataset.ptype});
+    onParamsChanged();
+  });
+});
+$('photoPersonColor').addEventListener('input', ()=>{
+  if(!contextMenuKey) return;
+  state.photoOverrides[contextMenuKey]=Object.assign(state.photoOverrides[contextMenuKey]||{}, {color:$('photoPersonColor').value});
+  onParamsChanged();
+});
+$('photoPersonReset').addEventListener('click', ()=>{
+  if(!contextMenuKey) return;
+  delete state.photoOverrides[contextMenuKey];
+  $('photoPersonMenu').style.display='none';
+  onParamsChanged();
+});
 mainCanvas.addEventListener('pointerdown', e=>{
   if(state.view==='persp'){
     state.dragging=true; state.lastX=e.clientX; state.lastY=e.clientY; return;
@@ -1787,6 +1880,10 @@ window.addEventListener('pointermove', e=>{
       if(dragObject.index===state.selectedAnnotation){
         $('annoRotSlider').value=deg.toFixed(0); $('annoRotVal').textContent=deg.toFixed(0)+'°';
       }
+      onParamsChanged();
+    } else if(dragObject.type==='photoPerson'){
+      const key=dragObject.key;
+      state.photoOverrides[key]=Object.assign(state.photoOverrides[key]||{}, {x:wp.x, z:Math.max(0,wp.z)});
       onParamsChanged();
     }
     return;
@@ -1957,6 +2054,11 @@ function animate(){
         const s=project(topCam, new THREE.Vector3(pin.x,0,pin.z));
         if(s.visible) dragTargets.push({type:'pin', index:i, x:s.x, y:s.y});
       });
+    } else {
+      photoPersonPositions.forEach(pp=>{
+        const s=project(topCam, new THREE.Vector3(pp.x,0,pp.z));
+        if(s.visible) dragTargets.push({type:'photoPerson', key:pp.key, baseType:pp.baseType, x:s.x, y:s.y});
+      });
     }
   } else {
     dragTargets=[];
@@ -2096,7 +2198,8 @@ function serializeConfig(){
     fields:{}, cameras:state.cameras, activeCam:state.activeCam,
     backdrops:state.backdrops, activeBackdrop:state.activeBackdrop,
     blockingMode:state.blockingMode, pins:state.pins, rowCounts:state.rowCounts,
-    scenes:state.scenes, activeScene:state.activeScene, floorplan:state.floorplan, annotations:state.annotations };
+    scenes:state.scenes, activeScene:state.activeScene, floorplan:state.floorplan, annotations:state.annotations,
+    photoOverrides:state.photoOverrides };
   PLAIN_FIELDS.forEach(id=>{ cfg.fields[id]=$(id).value; });
   return cfg;
 }
@@ -2153,6 +2256,7 @@ function applyConfig(cfg){
   }
 
   state.annotations=Array.isArray(cfg.annotations) ? cfg.annotations : [];
+  state.photoOverrides=(cfg.photoOverrides && typeof cfg.photoOverrides==='object') ? cfg.photoOverrides : {};
   state.selectedAnnotation=-1;
   rebuildAnnoList();
   updateAnnoEditor();
