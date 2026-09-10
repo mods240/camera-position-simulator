@@ -14,7 +14,7 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
   .wrap{display:flex;min-height:100vh;flex-wrap:wrap;}
-  .controls{width:340px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);max-height:100vh;overflow-y:auto;}
+  .controls{width:380px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);max-height:100vh;overflow-y:auto;}
   .resize-handle{width:6px;flex-shrink:0;cursor:col-resize;background:var(--panel);position:relative;}
   .resize-handle:hover, .resize-handle.dragging{background:var(--amber-dim);}
   .resize-handle::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:28px;background:var(--line);border-radius:1px;}
@@ -959,24 +959,24 @@ function buildRowCountInputs(){
   const box=$('rowCountInputs'); box.innerHTML='';
   state.rowCounts.forEach((rv,i)=>{
     const row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:6px;';
+    row.style.cssText='display:flex;align-items:center;gap:4px;';
     const label=i===0?'最前列':(i===rows-1?'最後列':`${i+1}列目`);
     const lbl=document.createElement('span');
-    lbl.style.cssText='min-width:48px;font-size:12px;color:var(--muted);flex-shrink:0;';
+    lbl.style.cssText='min-width:40px;font-size:11.5px;color:var(--muted);flex-shrink:0;';
     lbl.textContent=label;
     const minusBtn=document.createElement('button');
     minusBtn.textContent='−';
-    minusBtn.style.cssText='width:26px;height:26px;flex-shrink:0;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;';
+    minusBtn.style.cssText='width:22px;height:22px;flex-shrink:0;padding:0;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;font-size:12px;line-height:1;';
     const totalSpan=document.createElement('span');
-    totalSpan.style.cssText='flex:1;min-width:70px;text-align:center;font-family:var(--mono);font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    const setTotalText=()=>{ totalSpan.textContent=`${rv.adult+rv.child}(大${rv.adult}・子${rv.child})`; };
+    totalSpan.style.cssText='flex:1;min-width:0;text-align:center;font-family:var(--mono);font-size:11.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    const setTotalText=()=>{ totalSpan.textContent=`${rv.adult+rv.child}(大${rv.adult}子${rv.child})`; };
     setTotalText();
     const plusBtn=document.createElement('button');
     plusBtn.textContent='+';
-    plusBtn.style.cssText='width:26px;height:26px;flex-shrink:0;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;';
+    plusBtn.style.cssText='width:22px;height:22px;flex-shrink:0;padding:0;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;font-size:12px;line-height:1;';
     const delBtn=document.createElement('button');
     delBtn.textContent='×';
-    delBtn.style.cssText='flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;';
+    delBtn.style.cssText='flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 2px;';
     minusBtn.onclick=()=>{
       if(state.addMode==='adult'){ if(rv.adult>0) rv.adult--; } else { if(rv.child>0) rv.child--; }
       setTotalText(); onParamsChanged();
