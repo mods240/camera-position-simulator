@@ -1037,9 +1037,13 @@ function getRowCounts(){
 }
 function getRowTypesData(){
   return state.rowCounts.map(rv=>{
+    const n=rv.adult+rv.child;
     const arr=[];
-    for(let k=0;k<rv.child;k++) arr.push('child');
-    for(let k=0;k<rv.adult;k++) arr.push('adult');
+    for(let i=0;i<n;i++){
+      const before=n>0 ? Math.floor(i*rv.adult/n) : 0;
+      const after=n>0 ? Math.floor((i+1)*rv.adult/n) : 0;
+      arr.push(after>before ? 'adult' : 'child');
+    }
     return arr;
   });
 }
@@ -1084,13 +1088,23 @@ $('autoFillTargetBtn').addEventListener('click', ()=>{
   const targetAdult=Math.max(0, parseInt($('adultCount').value)||0);
   const targetChild=Math.max(0, parseInt($('childCount').value)||0);
   const rows=state.rowCounts.length;
-  function distribute(n){
-    const base=Math.floor(n/rows), rem=n-base*rows;
-    const arr=new Array(rows).fill(base);
-    for(let i=0;i<rem;i++) arr[Math.floor(i*rows/rem)]++;
-    return arr;
+  function weightedDistribute(n, weights){
+    const totalW=weights.reduce((a,b)=>a+b,0);
+    if(totalW<=0 || n<=0) return weights.map(()=>0);
+    const scaled=weights.map(w=>w*n/totalW);
+    const floors=scaled.map(Math.floor);
+    let used=floors.reduce((a,b)=>a+b,0);
+    let remainder=n-used;
+    const frac=scaled.map((v,i)=>({i,f:v-floors[i]})).sort((a,b)=>b.f-a.f);
+    const result=floors.slice();
+    for(let k=0;k<remainder && frac.length>0;k++) result[frac[k%frac.length].i]++;
+    return result;
   }
-  const adultsPerRow=distribute(targetAdult), childrenPerRow=distribute(targetChild);
+  // row index 0 = 最前列, index (rows-1) = 最後列: adults weighted toward the back, children toward the front
+  const adultWeights=Array.from({length:rows}, (_,i)=>i+1);
+  const childWeights=Array.from({length:rows}, (_,i)=>rows-i);
+  const adultsPerRow=weightedDistribute(targetAdult, adultWeights);
+  const childrenPerRow=weightedDistribute(targetChild, childWeights);
   state.rowCounts=state.rowCounts.map((rv,i)=>({adult:adultsPerRow[i], child:childrenPerRow[i]}));
   buildRowCountInputs();
   onParamsChanged();
