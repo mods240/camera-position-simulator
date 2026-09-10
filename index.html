@@ -158,13 +158,14 @@
         <div class="row-inline"><span class="lbl">総人数</span><input type="number" id="total" value="10" min="1" max="200"></div>
         <div class="row-inline"><span class="lbl">大人の人数</span><input type="number" id="adultCount" value="6" min="0" max="200"></div>
         <div class="row-inline"><span class="lbl">子供の人数</span><input type="number" id="childCount" value="4" min="0" max="200"></div>
-        <p class="note">総人数・大人・子供を変えると、各列の人数がその合計に合わせて再配分されます。各列を直接編集した場合は総人数を固定したまま、他の列で自動調整されます。</p>
+        <p class="note">総人数・大人・子供は「目標」の人数です。各列の人数は完全に独立して編集でき、目標との過不足が下に表示されるので、0になるように調整してください。</p>
 
         <h2 class="grouplabel" style="margin-top:16px;">配列</h2>
         <div class="row-inline"><span class="lbl">列数(前後)</span><input type="number" id="rows" value="3" min="1" max="15"></div>
         <div id="rowCountInputs" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;"></div>
         <p class="note">各列の人数を個別に指定できます。子供は前の列から優先的に配置されます。</p>
         <p class="note" id="rowBreakdownDisplay" style="margin-top:-6px;">行ごとの人数: —</p>
+        <p class="note" id="rowBalanceDisplay" style="font-weight:bold;">—</p>
         <label>横の人数間隔 <span class="val" id="spacingVal">0.6 m</span></label>
         <input type="range" id="spacing" min="0.4" max="0.9" step="0.05" value="0.6">
         <label>列同士の前後間隔 <span class="val" id="rowGapVal">0.5 m</span></label>
@@ -919,46 +920,13 @@ function buildRowCountInputs(){
     const input=document.createElement('input');
     input.type='number'; input.min='0'; input.max='80'; input.value=count; input.style.width='64px';
     input.addEventListener('input', ()=>{
-      adjustRowCount(i, parseInt(input.value)||0);
-      syncRowCountInputsDisplay();
+      state.rowCounts[i]=Math.max(0, parseInt(input.value)||0);
       onParamsChanged();
     });
     rowCountInputEls.push(input);
     row.appendChild(lbl); row.appendChild(input);
     box.appendChild(row);
   });
-}
-function syncRowCountInputsDisplay(){
-  state.rowCounts.forEach((v,i)=>{ if(rowCountInputEls[i] && document.activeElement!==rowCountInputEls[i]) rowCountInputEls[i].value=v; });
-}
-function adjustRowCount(i, newVal){
-  const rows=state.rowCounts;
-  newVal=Math.max(0, Math.round(newVal));
-  const total=rows.reduce((a,b)=>a+b,0);
-  newVal=Math.min(newVal, total);
-  const newOthersSum=total-newVal;
-  const otherIdx=rows.map((_,idx)=>idx).filter(idx=>idx!==i);
-  const othersOld=otherIdx.map(idx=>rows[idx]);
-  const othersOldSum=othersOld.reduce((a,b)=>a+b,0);
-  let newOthers;
-  if(othersOldSum<=0){
-    const n=othersOld.length;
-    if(n===0){ newOthers=[]; }
-    else{
-      const base=Math.floor(newOthersSum/n), rem=newOthersSum-base*n;
-      newOthers=othersOld.map((_,k)=>base+(k<rem?1:0));
-    }
-  } else {
-    const scaled=othersOld.map(v=>v*newOthersSum/othersOldSum);
-    const floors=scaled.map(v=>Math.floor(v));
-    let used=floors.reduce((a,b)=>a+b,0);
-    let remainder=newOthersSum-used;
-    const fracIdx=scaled.map((v,k)=>({k,frac:v-floors[k]})).sort((a,b)=>b.frac-a.frac);
-    newOthers=floors.slice();
-    for(let k=0;k<remainder && fracIdx.length>0;k++) newOthers[fracIdx[k%fracIdx.length].k]++;
-  }
-  otherIdx.forEach((idx,k)=>{ rows[idx]=newOthers[k]; });
-  rows[i]=newVal;
 }
 $('rows').addEventListener('input', ()=>{
   const newRows=Math.max(1, Math.min(15, parseInt($('rows').value)||1));
@@ -969,12 +937,10 @@ $('rows').addEventListener('input', ()=>{
 function resizeRowCounts(newRows){
   const cur=state.rowCounts;
   if(newRows===cur.length) return;
-  const oldTotal=cur.reduce((a,b)=>a+b,0);
   if(newRows>cur.length){
-    while(cur.length<newRows) cur.push(0);
+    while(cur.length<newRows) cur.unshift(0);
   } else {
-    cur.length=newRows;
-    if(cur.reduce((a,b)=>a+b,0)!==oldTotal) rescaleRowCounts(oldTotal);
+    while(cur.length>newRows) cur.shift();
   }
 }
 function getRowCounts(){
@@ -983,47 +949,39 @@ function getRowCounts(){
   state.rowCounts.length=rows;
   return state.rowCounts.slice();
 }
-function rescaleRowCounts(newTotal){
-  const old=state.rowCounts.slice();
-  const oldTotal=old.reduce((a,b)=>a+b,0);
-  const n=old.length;
-  if(oldTotal<=0){
-    const base=Math.floor(newTotal/n), rem=newTotal-base*n;
-    state.rowCounts=old.map((_,i)=>base+(i<rem?1:0));
-    return;
-  }
-  const scaled=old.map(v=>v*newTotal/oldTotal);
-  const floors=scaled.map(v=>Math.floor(v));
-  let used=floors.reduce((a,b)=>a+b,0);
-  let remainder=newTotal-used;
-  const fracIdx=scaled.map((v,i)=>({i,frac:v-floors[i]})).sort((a,b)=>b.frac-a.frac);
-  const result=floors.slice();
-  for(let k=0;k<remainder && fracIdx.length>0;k++) result[fracIdx[k%fracIdx.length].i]++;
-  state.rowCounts=result;
-}
 function updatePeopleTotals(source){
-  let rowCounts=getRowCounts();
-  let total=rowCounts.reduce((a,b)=>a+b,0);
-  let child, adult;
+  const rowCounts=getRowCounts();
+  const rowSum=rowCounts.reduce((a,b)=>a+b,0);
 
-  if(source==='total'){
-    const t=Math.max(1, parseInt($('total').value)||1);
-    if(t!==total){ rescaleRowCounts(t); rowCounts=getRowCounts(); total=t; buildRowCountInputs(); }
-    child=Math.max(0, Math.min(total, parseInt($('childCount').value)||0));
-    adult=total-child;
-  } else if(source==='adult' || source==='child'){
-    adult=Math.max(0, parseInt($('adultCount').value)||0);
-    child=Math.max(0, parseInt($('childCount').value)||0);
-    const t=Math.max(1, adult+child);
-    if(t!==total){ rescaleRowCounts(t); rowCounts=getRowCounts(); total=t; buildRowCountInputs(); }
-  } else {
-    child=Math.max(0, Math.min(total, parseInt($('childCount').value)||0));
-    adult=total-child;
+  let total=Math.max(1, parseInt($('total').value)||1);
+  let targetAdult=Math.max(0, parseInt($('adultCount').value)||0);
+  let targetChild=Math.max(0, parseInt($('childCount').value)||0);
+
+  if(source==='adult' || source==='child'){
+    total=Math.max(1, targetAdult+targetChild);
+  } else if(source==='total'){
+    targetChild=Math.min(total, targetChild);
+    targetAdult=total-targetChild;
   }
   $('total').value=total;
-  $('childCount').value=child;
-  $('adultCount').value=adult;
-  return {total, child, adult, rowCounts};
+  $('adultCount').value=targetAdult;
+  $('childCount').value=targetChild;
+
+  const balance=total-rowSum;
+  const balEl=$('rowBalanceDisplay');
+  if(balance===0){
+    balEl.textContent=`配置${rowSum}人 / 目標${total}人 — 過不足なし`;
+    balEl.style.color='var(--teal)';
+  } else if(balance>0){
+    balEl.textContent=`配置${rowSum}人 / 目標${total}人 — あと${balance}人足りません`;
+    balEl.style.color='var(--red)';
+  } else {
+    balEl.textContent=`配置${rowSum}人 / 目標${total}人 — ${-balance}人多く配置されています`;
+    balEl.style.color='var(--red)';
+  }
+
+  const renderChild=Math.max(0, Math.min(rowSum, targetChild));
+  return { total:rowSum, child:renderChild, adult:rowSum-renderChild, rowCounts };
 }
 $('childCount').addEventListener('input', ()=>{ updatePeopleTotals('child'); onParamsChanged(); });
 $('adultCount').addEventListener('input', ()=>{ updatePeopleTotals('adult'); onParamsChanged(); });
@@ -1335,6 +1293,21 @@ function rebuildStudio(){
 }
 
 /* ---------- backdrop + people ---------- */
+function makeRotateHandle(cx,cz,rotDeg,dist,colorHex){
+  const rad=(rotDeg||0)*Math.PI/180;
+  const hx=cx+Math.sin(rad)*dist, hz=cz+Math.cos(rad)*dist;
+  const group=new THREE.Group();
+  const lineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(cx,0.03,cz), new THREE.Vector3(hx,0.03,hz)]);
+  const line=new THREE.Line(lineGeo, new THREE.LineBasicMaterial({color:colorHex}));
+  line.layers.set(1);
+  group.add(line);
+  const knob=new THREE.Mesh(new THREE.SphereGeometry(0.12,12,10), new THREE.MeshBasicMaterial({color:colorHex}));
+  knob.position.set(hx,0.03,hz);
+  knob.layers.set(1);
+  group.add(knob);
+  group.userData.handlePos={x:hx,z:hz};
+  return group;
+}
 function effectiveBdSize(bd){
   if(bd.type==='led'){
     const m=bd.ledModule||0.5;
@@ -1437,6 +1410,11 @@ function rebuildScene(){
     bdGroup.rotation.y=bd.bdRot*Math.PI/180;
     dynamicGroup.add(bdGroup);
   });
+  {
+    const abd=state.backdrops[state.activeBackdrop];
+    const handleDist=Math.max(1.2, effectiveBdSize(abd).w/2+0.6);
+    dynamicGroup.add(makeRotateHandle(abd.bdX, abd.bdDepth, abd.bdRot, handleDist, 0x4FA3A0));
+  }
   const activeBd=state.backdrops[state.activeBackdrop];
   const activeBdSize=effectiveBdSize(activeBd);
   const bdW=activeBdSize.w, bdH=activeBdSize.h, offX=activeBd.bdX;
@@ -1473,6 +1451,11 @@ function rebuildScene(){
     group.rotation.y=(a.rotation||0)*Math.PI/180;
     dynamicGroup.add(group);
   });
+  if(state.annotations[state.selectedAnnotation]){
+    const sa=state.annotations[state.selectedAnnotation];
+    const handleDist=Math.max(1.0, Math.max(sa.w,sa.h)/2+0.5);
+    dynamicGroup.add(makeRotateHandle(sa.x, sa.z, sa.rotation, handleDist, 0xD96C6C));
+  }
 
   state.cameras.forEach((cam,i)=>{
     const isActive=i===state.activeCam;
@@ -1489,6 +1472,11 @@ function rebuildScene(){
     camMarker.userData.camLabel=cam.name;
     dynamicGroup.add(camMarker);
   });
+  {
+    const ac=state.cameras[state.activeCam];
+    const handle=makeRotateHandle(parseFloat(ac.camX)||0, parseFloat(ac.camDepth)||0, parseFloat(ac.pan)||0, 1.1, 0xE8A33D);
+    dynamicGroup.add(handle);
+  }
   const activeCamState=state.cameras[state.activeCam];
   const camZ=parseFloat(activeCamState.camDepth);
 
@@ -1739,6 +1727,25 @@ window.addEventListener('pointermove', e=>{
         $('annoZSlider').value=a.z; $('annoZVal').textContent=a.z.toFixed(1)+' m';
       }
       onParamsChanged();
+    } else if(dragObject.type==='rotate-camera'){
+      const cam=state.cameras[dragObject.index];
+      const cx=parseFloat(cam.camX)||0, cz=parseFloat(cam.camDepth)||0;
+      const deg=Math.atan2(wp.x-cx, wp.z-cz)*180/Math.PI;
+      $('pan').value=deg.toFixed(1);
+      onParamsChanged();
+    } else if(dragObject.type==='rotate-backdrop'){
+      const bd=state.backdrops[dragObject.index];
+      const deg=Math.atan2(wp.x-bd.bdX, wp.z-bd.bdDepth)*180/Math.PI;
+      $('bdRot').value=Math.max(-45,Math.min(45,deg)).toFixed(0);
+      onParamsChanged();
+    } else if(dragObject.type==='rotate-annotation' && state.annotations[dragObject.index]){
+      const a=state.annotations[dragObject.index];
+      const deg=Math.atan2(wp.x-a.x, wp.z-a.z)*180/Math.PI;
+      a.rotation=deg;
+      if(dragObject.index===state.selectedAnnotation){
+        $('annoRotSlider').value=deg.toFixed(0); $('annoRotVal').textContent=deg.toFixed(0)+'°';
+      }
+      onParamsChanged();
     }
     return;
   }
@@ -1880,6 +1887,29 @@ function animate(){
       const s=project(topCam, new THREE.Vector3(a.x,0,a.z));
       if(s.visible) dragTargets.push({type:'annotation', index:i, x:s.x, y:s.y});
     });
+    {
+      const ac=state.cameras[state.activeCam];
+      const acRad=(parseFloat(ac.pan)||0)*Math.PI/180;
+      const acx=(parseFloat(ac.camX)||0)+Math.sin(acRad)*1.1, acz=(parseFloat(ac.camDepth)||0)+Math.cos(acRad)*1.1;
+      const s=project(topCam, new THREE.Vector3(acx,0,acz));
+      if(s.visible) dragTargets.push({type:'rotate-camera', index:state.activeCam, x:s.x, y:s.y});
+    }
+    {
+      const abd=state.backdrops[state.activeBackdrop];
+      const dist=Math.max(1.2, effectiveBdSize(abd).w/2+0.6);
+      const rad=(abd.bdRot||0)*Math.PI/180;
+      const bx=abd.bdX+Math.sin(rad)*dist, bz=abd.bdDepth+Math.cos(rad)*dist;
+      const s=project(topCam, new THREE.Vector3(bx,0,bz));
+      if(s.visible) dragTargets.push({type:'rotate-backdrop', index:state.activeBackdrop, x:s.x, y:s.y});
+    }
+    if(state.annotations[state.selectedAnnotation]){
+      const sa=state.annotations[state.selectedAnnotation];
+      const dist=Math.max(1.0, Math.max(sa.w,sa.h)/2+0.5);
+      const rad=(sa.rotation||0)*Math.PI/180;
+      const ax=sa.x+Math.sin(rad)*dist, az=sa.z+Math.cos(rad)*dist;
+      const s=project(topCam, new THREE.Vector3(ax,0,az));
+      if(s.visible) dragTargets.push({type:'rotate-annotation', index:state.selectedAnnotation, x:s.x, y:s.y});
+    }
     if(state.blockingMode){
       state.pins.forEach((pin,i)=>{
         const s=project(topCam, new THREE.Vector3(pin.x,0,pin.z));
