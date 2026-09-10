@@ -163,6 +163,7 @@
         <div class="row-inline"><span class="lbl">大人の人数</span><input type="number" id="adultCount" value="6" min="0" max="200"></div>
         <div class="row-inline"><span class="lbl">子供の人数</span><input type="number" id="childCount" value="4" min="0" max="200"></div>
         <p class="note">総人数・大人・子供は「目標」の人数です。各列の人数は完全に独立して編集でき、目標との過不足が下に表示されるので、0になるように調整してください。</p>
+        <button id="autoFillTargetBtn" style="width:100%;padding:8px 0;border-radius:6px;border:1px solid var(--amber);background:var(--amber-dim);color:var(--amber);cursor:pointer;font-size:12px;margin-bottom:14px;">🎯 目標人数で列に自動配分</button>
 
         <h2 class="grouplabel" style="margin-top:16px;">配列</h2>
         <div class="row-inline"><span class="lbl">列数(前後)</span><input type="number" id="rows" value="3" min="1" max="15"></div>
@@ -1068,6 +1069,21 @@ function updatePeopleTotals(source){
 $('childCount').addEventListener('input', ()=>{ updatePeopleTotals('child'); onParamsChanged(); });
 $('adultCount').addEventListener('input', ()=>{ updatePeopleTotals('adult'); onParamsChanged(); });
 $('total').addEventListener('input', ()=>{ updatePeopleTotals('total'); onParamsChanged(); });
+$('autoFillTargetBtn').addEventListener('click', ()=>{
+  const targetAdult=Math.max(0, parseInt($('adultCount').value)||0);
+  const targetChild=Math.max(0, parseInt($('childCount').value)||0);
+  const rows=state.rowCounts.length;
+  function distribute(n){
+    const base=Math.floor(n/rows), rem=n-base*rows;
+    const arr=new Array(rows).fill(base);
+    for(let i=0;i<rem;i++) arr[Math.floor(i*rows/rem)]++;
+    return arr;
+  }
+  const adultsPerRow=distribute(targetAdult), childrenPerRow=distribute(targetChild);
+  state.rowCounts=state.rowCounts.map((rv,i)=>({adult:adultsPerRow[i], child:childrenPerRow[i]}));
+  buildRowCountInputs();
+  onParamsChanged();
+});
 
 /* ---------- people mode: photo vs blocking ---------- */
 document.querySelectorAll('#tab-people .toggle button[data-peoplemode]').forEach(b=>{
